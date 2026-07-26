@@ -145,7 +145,7 @@ export function TradeListPage() {
             <tbody className="divide-y divide-zinc-800">
               {sorted.map((t) => (
                 <tr key={t.id} className="hover:bg-zinc-900/60">
-                  <td className="px-3 py-2 text-zinc-300" dir="ltr">
+                  <td className="px-3 py-2 text-right text-zinc-300" dir="ltr">
                     {new Date(t.entry_datetime).toLocaleString('he-IL', {
                       dateStyle: 'short',
                       timeStyle: 'short',
@@ -162,20 +162,20 @@ export function TradeListPage() {
                       {t.direction === 'Long' ? 'לונג' : 'שורט'}
                     </span>
                   </td>
-                  <td className="px-3 py-2 text-zinc-300" dir="ltr">
+                  <td className="px-3 py-2 text-right text-zinc-300" dir="ltr">
                     {t.entry_price ?? '—'}
                   </td>
-                  <td className="px-3 py-2 text-zinc-300" dir="ltr">
+                  <td className="px-3 py-2 text-right text-zinc-300" dir="ltr">
                     {t.exit_price ?? '—'}
                   </td>
-                  <td className="px-3 py-2 text-zinc-300" dir="ltr">
+                  <td className="px-3 py-2 text-right text-zinc-300" dir="ltr">
                     {t.position_size}
                   </td>
-                  <td className="px-3 py-2 text-zinc-300" dir="ltr">
+                  <td className="px-3 py-2 text-right text-zinc-300" dir="ltr">
                     {t.points ?? '—'}
                   </td>
                   <td
-                    className={`px-3 py-2 font-medium ${
+                    className={`px-3 py-2 text-right font-medium ${
                       (t.pnl_dollars ?? 0) > 0
                         ? 'text-emerald-400'
                         : (t.pnl_dollars ?? 0) < 0

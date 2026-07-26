@@ -98,7 +98,11 @@ export function ReportPage() {
         <p className="py-6 text-center text-sm text-zinc-500">אין עסקאות בשבוע זה.</p>
       )}
 
-      <div ref={printableRef} className="rounded-xl border border-zinc-800 bg-zinc-950 p-6">
+      <div ref={printableRef} className="relative rounded-xl border border-zinc-800 bg-zinc-950 p-6">
+        <div className="absolute top-4 right-4 h-10 w-10 overflow-hidden rounded-lg bg-white p-1">
+          <img src="/icons/icon-512.png" alt="" className="h-full w-full object-contain" />
+        </div>
+
         <div className="mb-6 text-center">
           <h3 className="text-lg font-bold text-zinc-100">דוח מסחר שבועי — ST Indicator</h3>
           <p className="mt-1 text-sm text-zinc-500" dir="ltr">
@@ -139,7 +143,7 @@ export function ReportPage() {
               <tbody className="divide-y divide-zinc-900">
                 {weekTrades.map((t) => (
                   <tr key={t.id}>
-                    <td className="px-2 py-1.5 text-zinc-300" dir="ltr">
+                    <td className="px-2 py-1.5 text-right text-zinc-300" dir="ltr">
                       {new Date(t.entry_datetime).toLocaleDateString('he-IL', {
                         day: '2-digit',
                         month: '2-digit',
@@ -149,7 +153,7 @@ export function ReportPage() {
                       {t.direction === 'Long' ? 'לונג' : 'שורט'}
                     </td>
                     <td
-                      className={`px-2 py-1.5 font-medium ${
+                      className={`px-2 py-1.5 text-right font-medium ${
                         (t.pnl_dollars ?? 0) > 0
                           ? 'text-emerald-400'
                           : (t.pnl_dollars ?? 0) < 0
