@@ -100,7 +100,7 @@ export function ReportPage() {
 
       <div ref={printableRef} className="rounded-xl border border-zinc-800 bg-zinc-950 p-6">
         <div className="mb-6 text-center">
-          <h3 className="text-lg font-bold text-zinc-100">דוח מסחר שבועי — אינדיקטור יומי</h3>
+          <h3 className="text-lg font-bold text-zinc-100">דוח מסחר שבועי — ST Indicator</h3>
           <p className="mt-1 text-sm text-zinc-500" dir="ltr">
             {formatDateHe(start)} – {formatDateHe(end)}
           </p>
@@ -121,14 +121,11 @@ export function ReportPage() {
 
         {weekTrades.length > 0 && (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[560px] text-xs">
+            <table className="w-full min-w-[400px] text-xs">
               <thead className="text-zinc-500">
                 <tr className="border-b border-zinc-800">
                   <th className="px-2 py-2 text-right font-medium">תאריך</th>
                   <th className="px-2 py-2 text-right font-medium">כיוון</th>
-                  <th className="px-2 py-2 text-right font-medium">כניסה</th>
-                  <th className="px-2 py-2 text-right font-medium">יציאה</th>
-                  <th className="px-2 py-2 text-right font-medium">נקודות</th>
                   <th className="px-2 py-2 text-right font-medium">PnL ($)</th>
                   <th className="px-2 py-2 text-right font-medium">תוצאה</th>
                 </tr>
@@ -144,15 +141,6 @@ export function ReportPage() {
                     </td>
                     <td className="px-2 py-1.5 text-zinc-300">
                       {t.direction === 'Long' ? 'לונג' : 'שורט'}
-                    </td>
-                    <td className="px-2 py-1.5 text-zinc-300" dir="ltr">
-                      {t.entry_price ?? '—'}
-                    </td>
-                    <td className="px-2 py-1.5 text-zinc-300" dir="ltr">
-                      {t.exit_price ?? '—'}
-                    </td>
-                    <td className="px-2 py-1.5 text-zinc-300" dir="ltr">
-                      {t.points ?? '—'}
                     </td>
                     <td
                       className={`px-2 py-1.5 font-medium ${
