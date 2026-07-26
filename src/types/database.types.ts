@@ -9,7 +9,7 @@ export type Trade = {
   entry_datetime: string
   exit_datetime: string | null
   direction: Direction
-  entry_price: number
+  entry_price: number | null
   exit_price: number | null
   position_size: number
   points: number | null

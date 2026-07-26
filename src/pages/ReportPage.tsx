@@ -146,7 +146,7 @@ export function ReportPage() {
                       {t.direction === 'Long' ? 'לונג' : 'שורט'}
                     </td>
                     <td className="px-2 py-1.5 text-zinc-300" dir="ltr">
-                      {t.entry_price}
+                      {t.entry_price ?? '—'}
                     </td>
                     <td className="px-2 py-1.5 text-zinc-300" dir="ltr">
                       {t.exit_price ?? '—'}

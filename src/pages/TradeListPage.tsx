@@ -163,7 +163,7 @@ export function TradeListPage() {
                     </span>
                   </td>
                   <td className="px-3 py-2 text-zinc-300" dir="ltr">
-                    {t.entry_price}
+                    {t.entry_price ?? '—'}
                   </td>
                   <td className="px-3 py-2 text-zinc-300" dir="ltr">
                     {t.exit_price ?? '—'}

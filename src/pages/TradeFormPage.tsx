@@ -153,7 +153,7 @@ export function TradeFormPage() {
       entry_datetime,
       exit_datetime: combineDateAndTime(form.date, form.exitTime),
       direction: form.direction,
-      entry_price: Number(form.entry_price),
+      entry_price: form.entry_price ? Number(form.entry_price) : null,
       exit_price: form.exit_price ? Number(form.exit_price) : null,
       position_size: Number(form.position_size),
       points: form.pnlMode === 'auto' ? Number(form.points) : null,
@@ -241,12 +241,11 @@ export function TradeFormPage() {
             </div>
           </Field>
 
-          <Field label="מחיר כניסה" required>
+          <Field label="מחיר כניסה">
             <input
               type="number"
               inputMode="decimal"
               step="any"
-              required
               value={form.entry_price}
               onChange={(e) => update('entry_price', e.target.value)}
               className={inputClass}
