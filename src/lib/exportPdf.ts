@@ -1,5 +1,7 @@
 import jsPDF from 'jspdf'
-import html2canvas from 'html2canvas'
+// html2canvas-pro (not html2canvas) — the original library can't parse the
+// oklch() colors Tailwind v4 emits and throws instead of rendering.
+import html2canvas from 'html2canvas-pro'
 
 export async function exportElementToPdf(element: HTMLElement, filename: string): Promise<void> {
   const canvas = await html2canvas(element, {
