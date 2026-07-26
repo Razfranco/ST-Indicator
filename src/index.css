@@ -1,0 +1,40 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-feature-settings: "tnum" 1;
+}
+
+/* Numeric/date/time fields stay LTR even inside an RTL layout,
+   otherwise native browser pickers render their internal format reversed */
+input[type="number"],
+input[inputmode="decimal"],
+input[inputmode="numeric"],
+input[type="date"],
+input[type="time"],
+input[type="datetime-local"] {
+  direction: ltr;
+  text-align: right;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: #3f3f46;
+  border-radius: 9999px;
+}
