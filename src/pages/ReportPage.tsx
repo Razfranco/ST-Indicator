@@ -121,7 +121,13 @@ export function ReportPage() {
 
         {weekTrades.length > 0 && (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[400px] text-xs">
+            <table className="w-full min-w-[400px] table-fixed text-xs">
+              <colgroup>
+                <col className="w-1/4" />
+                <col className="w-1/5" />
+                <col className="w-[30%]" />
+                <col className="w-1/4" />
+              </colgroup>
               <thead className="text-zinc-500">
                 <tr className="border-b border-zinc-800">
                   <th className="px-2 py-2 text-right font-medium">תאריך</th>
