@@ -16,6 +16,8 @@ import {
   computeMonthCalendar,
   computePeriodPnl,
   computePeriodResultCounts,
+  computeResultCounts,
+  computeTradeBreakevenRate,
   computeTradeLossRate,
   computeTradeWinRate,
   currentPeriodBounds,
@@ -78,6 +80,8 @@ export function DashboardPage() {
   const totals = useMemo(() => computeDashboardTotals(scopedTrades), [scopedTrades])
   const winRate = useMemo(() => computeTradeWinRate(scopedTrades), [scopedTrades])
   const lossRate = useMemo(() => computeTradeLossRate(scopedTrades), [scopedTrades])
+  const breakevenRate = useMemo(() => computeTradeBreakevenRate(scopedTrades), [scopedTrades])
+  const resultCounts = useMemo(() => computeResultCounts(scopedTrades), [scopedTrades])
   const periodPnl = useMemo(
     () => computePeriodPnl(scopedTrades, chartBucket, chartLimit),
     [scopedTrades, chartBucket, chartLimit],
@@ -138,11 +142,23 @@ export function DashboardPage() {
         <StatTile label="אחוז הצלחה" value={formatPercent(winRate)} />
         <StatTile label="אחוז ימים רווחיים" value={formatPercent(totals.profitableDaysPct)} />
         <div className="flex flex-col gap-1 rounded-xl border border-zinc-800 bg-zinc-900/40 p-3">
-          <span className="text-xs text-zinc-500">מרוויחות מול מפסידות</span>
-          <span className="text-xl font-semibold" dir="ltr">
+          <span className="text-xs text-zinc-500">מרוויחות מול מפסידות מול ברייק-איבן</span>
+          <span className="text-lg font-semibold" dir="ltr">
             <span className="text-emerald-400">{formatPercent(winRate)}</span>
             <span className="text-zinc-600"> / </span>
             <span className="text-red-400">{formatPercent(lossRate)}</span>
+            <span className="text-zinc-600"> / </span>
+            <span className="text-zinc-400">{formatPercent(breakevenRate)}</span>
+          </span>
+        </div>
+        <div className="flex flex-col gap-1 rounded-xl border border-zinc-800 bg-zinc-900/40 p-3">
+          <span className="text-xs text-zinc-500">מספר עסקאות (מרוויחות / מפסידות / BE)</span>
+          <span className="text-lg font-semibold" dir="ltr">
+            <span className="text-emerald-400">{resultCounts.win}</span>
+            <span className="text-zinc-600"> / </span>
+            <span className="text-red-400">{resultCounts.loss}</span>
+            <span className="text-zinc-600"> / </span>
+            <span className="text-zinc-400">{resultCounts.breakeven}</span>
           </span>
         </div>
         <StatTile label="רווח ממוצע" value={formatCurrency(totals.avgWin)} tone="positive" />

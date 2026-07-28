@@ -55,18 +55,35 @@ export function isLoss(t: Trade): boolean {
   return t.result === 'SL'
 }
 
+/** ספירת עסקאות מרוויחות/מפסידות/ברייק-איבן מתוך קבוצת עסקאות נתונה */
+export function computeResultCounts(trades: Trade[]): { win: number; loss: number; breakeven: number } {
+  let win = 0
+  let loss = 0
+  let breakeven = 0
+  for (const t of trades) {
+    if (isWin(t)) win++
+    else if (isLoss(t)) loss++
+    else breakeven++
+  }
+  return { win, loss, breakeven }
+}
+
 /** אחוז עסקאות מרוויחות מתוך כלל העסקאות (TP1/TP2 מתוך הכל) */
 export function computeTradeWinRate(trades: Trade[]): number | null {
   if (trades.length === 0) return null
-  const wins = trades.filter(isWin).length
-  return (wins / trades.length) * 100
+  return (computeResultCounts(trades).win / trades.length) * 100
 }
 
 /** אחוז עסקאות מפסידות מתוך כלל העסקאות (SL מתוך הכל) */
 export function computeTradeLossRate(trades: Trade[]): number | null {
   if (trades.length === 0) return null
-  const losses = trades.filter(isLoss).length
-  return (losses / trades.length) * 100
+  return (computeResultCounts(trades).loss / trades.length) * 100
+}
+
+/** אחוז עסקאות ברייק-איבן מתוך כלל העסקאות (BE מתוך הכל) */
+export function computeTradeBreakevenRate(trades: Trade[]): number | null {
+  if (trades.length === 0) return null
+  return (computeResultCounts(trades).breakeven / trades.length) * 100
 }
 
 /** תאריכי תחילת/סוף השבוע (ראשון עד שבת) המכילים תאריך נתון */
