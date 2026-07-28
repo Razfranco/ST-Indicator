@@ -16,6 +16,7 @@ import {
   computeMonthCalendar,
   computePeriodPnl,
   computePeriodResultCounts,
+  computeTradeLossRate,
   computeTradeWinRate,
   currentPeriodBounds,
   filterTradesByRange,
@@ -76,6 +77,7 @@ export function DashboardPage() {
 
   const totals = useMemo(() => computeDashboardTotals(scopedTrades), [scopedTrades])
   const winRate = useMemo(() => computeTradeWinRate(scopedTrades), [scopedTrades])
+  const lossRate = useMemo(() => computeTradeLossRate(scopedTrades), [scopedTrades])
   const periodPnl = useMemo(
     () => computePeriodPnl(scopedTrades, chartBucket, chartLimit),
     [scopedTrades, chartBucket, chartLimit],
@@ -127,7 +129,7 @@ export function DashboardPage() {
         ))}
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatTile
           label="רווח/הפסד כולל"
           value={formatCurrency(totals.totalPnl)}
@@ -135,6 +137,14 @@ export function DashboardPage() {
         />
         <StatTile label="אחוז הצלחה" value={formatPercent(winRate)} />
         <StatTile label="אחוז ימים רווחיים" value={formatPercent(totals.profitableDaysPct)} />
+        <div className="flex flex-col gap-1 rounded-xl border border-zinc-800 bg-zinc-900/40 p-3">
+          <span className="text-xs text-zinc-500">מרוויחות מול מפסידות</span>
+          <span className="text-xl font-semibold" dir="ltr">
+            <span className="text-emerald-400">{formatPercent(winRate)}</span>
+            <span className="text-zinc-600"> / </span>
+            <span className="text-red-400">{formatPercent(lossRate)}</span>
+          </span>
+        </div>
         <StatTile label="רווח ממוצע" value={formatCurrency(totals.avgWin)} tone="positive" />
         <StatTile label="הפסד ממוצע" value={formatCurrency(totals.avgLoss)} tone="negative" />
         <StatTile label="מספר עסקאות" value={String(totals.tradeCount)} />

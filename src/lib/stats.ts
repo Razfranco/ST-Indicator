@@ -62,6 +62,13 @@ export function computeTradeWinRate(trades: Trade[]): number | null {
   return (wins / trades.length) * 100
 }
 
+/** אחוז עסקאות מפסידות מתוך כלל העסקאות (SL מתוך הכל) */
+export function computeTradeLossRate(trades: Trade[]): number | null {
+  if (trades.length === 0) return null
+  const losses = trades.filter(isLoss).length
+  return (losses / trades.length) * 100
+}
+
 /** תאריכי תחילת/סוף השבוע (ראשון עד שבת) המכילים תאריך נתון */
 export function weekRange(d: Date): { start: Date; end: Date } {
   const start = startOfWeek(d)
