@@ -16,6 +16,7 @@ import {
   computeMonthCalendar,
   computePeriodPnl,
   computePeriodResultCounts,
+  computeTradeWinRate,
   currentPeriodBounds,
   filterTradesByRange,
   type DashboardScope,
@@ -74,6 +75,7 @@ export function DashboardPage() {
   const chartLimit = scope === 'total' ? 12 : 60
 
   const totals = useMemo(() => computeDashboardTotals(scopedTrades), [scopedTrades])
+  const winRate = useMemo(() => computeTradeWinRate(scopedTrades), [scopedTrades])
   const periodPnl = useMemo(
     () => computePeriodPnl(scopedTrades, chartBucket, chartLimit),
     [scopedTrades, chartBucket, chartLimit],
@@ -125,12 +127,13 @@ export function DashboardPage() {
         ))}
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <StatTile
           label="רווח/הפסד כולל"
           value={formatCurrency(totals.totalPnl)}
           tone={totals.totalPnl > 0 ? 'positive' : totals.totalPnl < 0 ? 'negative' : 'neutral'}
         />
+        <StatTile label="אחוז הצלחה" value={formatPercent(winRate)} />
         <StatTile label="אחוז ימים רווחיים" value={formatPercent(totals.profitableDaysPct)} />
         <StatTile label="רווח ממוצע" value={formatCurrency(totals.avgWin)} tone="positive" />
         <StatTile label="הפסד ממוצע" value={formatCurrency(totals.avgLoss)} tone="negative" />
