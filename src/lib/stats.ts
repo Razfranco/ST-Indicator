@@ -86,6 +86,20 @@ export function computeTradeBreakevenRate(trades: Trade[]): number | null {
   return (computeResultCounts(trades).breakeven / trades.length) * 100
 }
 
+/** Profit Factor = סה"כ רווח גולמי / סה"כ הפסד גולמי (ערך מוחלט) */
+export function computeProfitFactor(trades: Trade[]): number | null {
+  if (trades.length === 0) return null
+  let grossProfit = 0
+  let grossLoss = 0
+  for (const t of trades) {
+    const pnl = t.pnl_dollars ?? 0
+    if (pnl > 0) grossProfit += pnl
+    else if (pnl < 0) grossLoss += Math.abs(pnl)
+  }
+  if (grossLoss === 0) return grossProfit > 0 ? Infinity : null
+  return grossProfit / grossLoss
+}
+
 /** תאריכי תחילת/סוף השבוע (ראשון עד שבת) המכילים תאריך נתון */
 export function weekRange(d: Date): { start: Date; end: Date } {
   const start = startOfWeek(d)

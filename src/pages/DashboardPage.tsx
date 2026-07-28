@@ -16,6 +16,7 @@ import {
   computeMonthCalendar,
   computePeriodPnl,
   computePeriodResultCounts,
+  computeProfitFactor,
   computeResultCounts,
   computeTradeBreakevenRate,
   computeTradeLossRate,
@@ -25,7 +26,7 @@ import {
   type DashboardScope,
   type Period,
 } from '../lib/stats'
-import { formatCurrency, formatPercent } from '../lib/format'
+import { formatCurrency, formatPercent, formatProfitFactor } from '../lib/format'
 import { StatTile } from '../components/StatTile'
 
 const COLOR_WIN = '#34d399'
@@ -82,6 +83,7 @@ export function DashboardPage() {
   const lossRate = useMemo(() => computeTradeLossRate(scopedTrades), [scopedTrades])
   const breakevenRate = useMemo(() => computeTradeBreakevenRate(scopedTrades), [scopedTrades])
   const resultCounts = useMemo(() => computeResultCounts(scopedTrades), [scopedTrades])
+  const profitFactor = useMemo(() => computeProfitFactor(scopedTrades), [scopedTrades])
   const periodPnl = useMemo(
     () => computePeriodPnl(scopedTrades, chartBucket, chartLimit),
     [scopedTrades, chartBucket, chartLimit],
@@ -139,7 +141,11 @@ export function DashboardPage() {
           value={formatCurrency(totals.totalPnl)}
           tone={totals.totalPnl > 0 ? 'positive' : totals.totalPnl < 0 ? 'negative' : 'neutral'}
         />
-        <StatTile label="אחוז הצלחה" value={formatPercent(winRate)} />
+        <StatTile
+          label="Profit Factor"
+          value={formatProfitFactor(profitFactor)}
+          tone={profitFactor == null ? 'neutral' : profitFactor >= 1 ? 'positive' : 'negative'}
+        />
         <StatTile label="אחוז ימים רווחיים" value={formatPercent(totals.profitableDaysPct)} />
         <div className="flex flex-col gap-1 rounded-xl border border-zinc-800 bg-zinc-900/40 p-3">
           <span className="text-xs text-zinc-500">מרוויחות מול מפסידות מול ברייק-איבן</span>
