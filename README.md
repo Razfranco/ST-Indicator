@@ -21,8 +21,18 @@
 - `0002_simplify_trades.sql` — עדכון השדות בטופס ההזנה
 - `0003_enable_realtime.sql` — הפעלת סנכרון בזמן אמת בין מכשירים
 - `0004_multi_user_admin.sql` — מערכת משתמשים מרובים: יומן משותף, אישור מנהל לכל משתמש חדש
+- `0005_entry_price_optional.sql` — הפיכת מחיר כניסה לשדה רשות
+- `0006_business_crm.sql` — מודול ניהול עסקי (לקוחות/חיובים/לידים/הוצאות/תזרים)
 
 אחרי הרצת 0004: המשתמש הקיים היחיד באפליקציה הופך אוטומטית **למנהל מאושר**. כל מי שנרשם אחרי זה מתחיל כ"ממתין לאישור" ולא רואה נתונים עד שהמנהל יאשר אותו דרך לשונית "ניהול" באפליקציה.
+
+### מודול ניהול עסקי (0006) — הרשאה נפרדת
+
+המודול העסקי (לקוחות משלמים, לידים, הוצאות, תזרים) **נפרד לחלוטין** מיומן העסקאות ומזרימת האישור של השותפים. שותף שאושר לראות עסקאות לא מקבל גישה למודול העסקי אוטומטית — הגישה נשלטת דרך עמודה ייעודית `profiles.business_access`.
+
+לאחר הרצת `0006_business_crm.sql`, המשתמש שהוא כבר `role = admin` מקבל `business_access = true` אוטומטית (השורה הרלוונטית ב-migration מריצה את זה בעצמה — אין צורך בפעולה ידנית נוספת אם אתה כבר מוגדר כמנהל).
+
+כדי להעניק גישה עסקית למשתמש נוסף (או לוודא/לתקן ידנית עבור עצמך), ב-Supabase **Table Editor → profiles**: מצא/י את השורה של המשתמש הרלוונטי ושנה/י את `business_access` ל-`true`. הלשונית "ניהול עסקי" תופיע באפליקציה (בתפריט העליון/תחתון) רק למי ש-`business_access = true`.
 
 ## שלב 3 — הגדרת משתני סביבה
 
@@ -76,11 +86,14 @@ npm run lint       # בדיקת lint
 
 ```
 src/
-  components/   רכיבים משותפים (Layout, ProtectedRoute, AdminRoute, StatTile)
+  components/   רכיבים משותפים (Layout, ProtectedRoute, AdminRoute, BusinessRoute,
+                BusinessLayout, BusinessFormControls, StatTile)
   context/      AuthContext (session + profile/הרשאות)
-  lib/          חיבור Supabase, קבועים, חישובים, hooks (useTrades, useProfiles — עם realtime)
+  lib/          חיבור Supabase, קבועים, חישובים, hooks (useTrades, useProfiles,
+                useCustomers, useCustomerBillings, useLeads, useExpenses — עם realtime)
   pages/        מסכי האפליקציה (Login, עסקאות, טופס עסקה, דשבורד, דוח שבועי, ניהול)
-  types/        טיפוסי TypeScript התואמים לסכמת ה-DB
+  pages/business/  מסכי המודול העסקי (לקוחות, טופס לקוח, לידים, הוצאות, תזרים)
+  types/        טיפוסי TypeScript התואמים לסכמת ה-DB (database.types.ts, business.types.ts)
 supabase/
   migrations/   קובצי SQL להרצה ב-Supabase SQL Editor, לפי סדר
 ```

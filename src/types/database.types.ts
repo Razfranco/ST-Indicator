@@ -1,3 +1,18 @@
+import type {
+  AdditionalExpense,
+  AdditionalExpenseInsert,
+  AdditionalExpenseUpdate,
+  Customer,
+  CustomerBilling,
+  CustomerBillingInsert,
+  CustomerBillingUpdate,
+  CustomerInsert,
+  CustomerUpdate,
+  Lead,
+  LeadInsert,
+  LeadUpdate,
+} from './business.types'
+
 export type Direction = 'Long' | 'Short'
 export type TradeResult = 'TP1' | 'TP2' | 'SL' | 'BE'
 export type UserRole = 'admin' | 'member'
@@ -28,6 +43,7 @@ export type Profile = {
   email: string
   role: UserRole
   approved: boolean
+  business_access: boolean
   created_at: string
 }
 
@@ -47,6 +63,30 @@ export type Database = {
         Row: Profile
         Insert: ProfileInsert
         Update: ProfileUpdate
+        Relationships: []
+      }
+      customers: {
+        Row: Customer
+        Insert: CustomerInsert
+        Update: CustomerUpdate
+        Relationships: []
+      }
+      customer_billings: {
+        Row: CustomerBilling
+        Insert: CustomerBillingInsert
+        Update: CustomerBillingUpdate
+        Relationships: []
+      }
+      leads: {
+        Row: Lead
+        Insert: LeadInsert
+        Update: LeadUpdate
+        Relationships: []
+      }
+      additional_expenses: {
+        Row: AdditionalExpense
+        Insert: AdditionalExpenseInsert
+        Update: AdditionalExpenseUpdate
         Relationships: []
       }
     }
