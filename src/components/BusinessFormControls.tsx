@@ -34,3 +34,16 @@ export function Field({
     </label>
   )
 }
+
+export const filterInputClass =
+  'w-full rounded-md border border-zinc-700 bg-zinc-800 px-2 py-1.5 text-sm text-zinc-100 outline-none focus:border-emerald-500'
+
+/** תא סינון קומפקטי לפי כותרת עמודה, לשימוש בשורת הפילטרים מעל טבלה */
+export function FilterField({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="text-xs text-zinc-500">{label}</span>
+      {children}
+    </label>
+  )
+}

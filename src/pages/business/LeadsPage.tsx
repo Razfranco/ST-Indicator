@@ -1,9 +1,19 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import { supabase } from '../../lib/supabaseClient'
 import { useLeads } from '../../lib/useLeads'
-import { Section, Field, inputClass } from '../../components/BusinessFormControls'
-import type { Lead } from '../../types/business.types'
+import { Section, Field, inputClass, FilterField, filterInputClass } from '../../components/BusinessFormControls'
+import type { Lead, LeadStatus } from '../../types/business.types'
+
+const STATUSES: LeadStatus[] = ['relevant', 'not_relevant']
+const statusLabel: Record<LeadStatus, string> = {
+  relevant: 'רלוונטי',
+  not_relevant: 'לא רלוונטי',
+}
+const statusClass: Record<LeadStatus, string> = {
+  relevant: 'bg-emerald-950 text-emerald-400',
+  not_relevant: 'bg-zinc-800 text-zinc-400',
+}
 
 interface FormState {
   full_name: string
@@ -11,9 +21,17 @@ interface FormState {
   source: string
   note: string
   follow_up: string
+  status: LeadStatus
 }
 
-const emptyForm: FormState = { full_name: '', phone: '', source: '', note: '', follow_up: '' }
+const emptyForm: FormState = {
+  full_name: '',
+  phone: '',
+  source: '',
+  note: '',
+  follow_up: '',
+  status: 'relevant',
+}
 
 function toForm(lead: Lead): FormState {
   return {
@@ -22,6 +40,7 @@ function toForm(lead: Lead): FormState {
     source: lead.source,
     note: lead.note ?? '',
     follow_up: lead.follow_up ?? '',
+    status: lead.status,
   }
 }
 
@@ -33,7 +52,29 @@ export function LeadsPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
 
+  const [nameFilter, setNameFilter] = useState('')
+  const [phoneFilter, setPhoneFilter] = useState('')
+  const [sourceFilter, setSourceFilter] = useState('')
+  const [statusFilter, setStatusFilter] = useState<LeadStatus | ''>('')
+  const [followUpFilter, setFollowUpFilter] = useState('')
+
   const error = loadError ?? actionError
+
+  const sourceOptions = useMemo(
+    () => Array.from(new Set(leads.map((l) => l.source).filter(Boolean))).sort(),
+    [leads],
+  )
+
+  const filtered = useMemo(() => {
+    return leads.filter((l) => {
+      if (nameFilter && !l.full_name.includes(nameFilter)) return false
+      if (phoneFilter && !l.phone.includes(phoneFilter)) return false
+      if (sourceFilter && l.source !== sourceFilter) return false
+      if (statusFilter && l.status !== statusFilter) return false
+      if (followUpFilter && !(l.follow_up ?? '').includes(followUpFilter)) return false
+      return true
+    })
+  }, [leads, nameFilter, phoneFilter, sourceFilter, statusFilter, followUpFilter])
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((f) => ({ ...f, [key]: value }))
@@ -60,6 +101,7 @@ export function LeadsPage() {
       source: form.source.trim(),
       note: form.note || null,
       follow_up: form.follow_up || null,
+      status: form.status,
     }
 
     const query = editingId
@@ -86,7 +128,7 @@ export function LeadsPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      <h2 className="text-xl font-bold">לידים ({leads.length})</h2>
+      <h2 className="text-xl font-bold">לידים ({filtered.length})</h2>
 
       {error && <p className="rounded-lg bg-red-950/50 px-3 py-2 text-sm text-red-400">{error}</p>}
 
@@ -129,6 +171,26 @@ export function LeadsPage() {
                 className={inputClass}
               />
             </Field>
+            <Field label="סטטוס" required>
+              <div className="flex gap-1 rounded-lg border border-zinc-700 bg-zinc-800 p-1">
+                {STATUSES.map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => update('status', s)}
+                    className={`flex-1 rounded-md py-2 text-sm font-semibold transition ${
+                      form.status === s
+                        ? s === 'relevant'
+                          ? 'bg-emerald-600 text-white'
+                          : 'bg-zinc-600 text-white'
+                        : 'text-zinc-400'
+                    }`}
+                  >
+                    {statusLabel[s]}
+                  </button>
+                ))}
+              </div>
+            </Field>
           </div>
           <Field label="הערה">
             <textarea
@@ -159,31 +221,93 @@ export function LeadsPage() {
         </form>
       </Section>
 
+      <div className="grid grid-cols-2 gap-3 rounded-xl border border-zinc-800 bg-zinc-900/40 p-3 sm:grid-cols-5">
+        <FilterField label="שם מלא">
+          <input
+            type="text"
+            value={nameFilter}
+            onChange={(e) => setNameFilter(e.target.value)}
+            className={filterInputClass}
+          />
+        </FilterField>
+        <FilterField label="טלפון">
+          <input
+            type="text"
+            dir="ltr"
+            value={phoneFilter}
+            onChange={(e) => setPhoneFilter(e.target.value)}
+            className={filterInputClass}
+          />
+        </FilterField>
+        <FilterField label="מקור">
+          <select
+            value={sourceFilter}
+            onChange={(e) => setSourceFilter(e.target.value)}
+            className={filterInputClass}
+          >
+            <option value="">הכל</option>
+            {sourceOptions.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+        </FilterField>
+        <FilterField label="סטטוס">
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as LeadStatus | '')}
+            className={filterInputClass}
+          >
+            <option value="">הכל</option>
+            {STATUSES.map((s) => (
+              <option key={s} value={s}>
+                {statusLabel[s]}
+              </option>
+            ))}
+          </select>
+        </FilterField>
+        <FilterField label="פולו-אפ">
+          <input
+            type="text"
+            value={followUpFilter}
+            onChange={(e) => setFollowUpFilter(e.target.value)}
+            className={filterInputClass}
+          />
+        </FilterField>
+      </div>
+
       {loading ? (
         <p className="py-10 text-center text-zinc-500">טוען לידים...</p>
-      ) : leads.length === 0 ? (
+      ) : filtered.length === 0 ? (
         <p className="py-10 text-center text-zinc-500">אין לידים להצגה.</p>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-zinc-800">
-          <table className="w-full min-w-[640px] text-sm">
+          <table className="w-full min-w-[720px] text-sm">
             <thead className="bg-zinc-900 text-zinc-400">
               <tr>
                 <th className="px-3 py-2 text-right font-medium">שם מלא</th>
                 <th className="px-3 py-2 text-right font-medium">טלפון</th>
                 <th className="px-3 py-2 text-right font-medium">מקור</th>
+                <th className="px-3 py-2 text-right font-medium">סטטוס</th>
                 <th className="px-3 py-2 text-right font-medium">פולו-אפ</th>
                 <th className="px-3 py-2 text-right font-medium">הערה</th>
                 <th className="px-3 py-2"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-800">
-              {leads.map((l) => (
+              {filtered.map((l) => (
                 <tr key={l.id} className="hover:bg-zinc-900/60">
                   <td className="px-3 py-2 font-medium text-zinc-200">{l.full_name}</td>
                   <td className="px-3 py-2 text-zinc-300" dir="ltr">
                     {l.phone}
                   </td>
                   <td className="px-3 py-2 text-zinc-300">{l.source}</td>
+                  <td className="px-3 py-2">
+                    <span className={`rounded px-1.5 py-0.5 text-xs font-semibold ${statusClass[l.status]}`}>
+                      {statusLabel[l.status]}
+                    </span>
+                  </td>
                   <td className="px-3 py-2 text-zinc-400">{l.follow_up ?? '—'}</td>
                   <td className="px-3 py-2 text-zinc-400">{l.note ?? '—'}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-left">
