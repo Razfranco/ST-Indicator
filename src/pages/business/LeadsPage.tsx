@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import { supabase } from '../../lib/supabaseClient'
 import { useLeads } from '../../lib/useLeads'
 import { Section, Field, inputClass, FilterField, filterInputClass } from '../../components/BusinessFormControls'
+import { Modal } from '../../components/Modal'
 import type { Lead, LeadStatus } from '../../types/business.types'
 
 const STATUSES: LeadStatus[] = ['relevant', 'not_relevant']
@@ -44,13 +45,109 @@ function toForm(lead: Lead): FormState {
   }
 }
 
+function toPayload(form: FormState) {
+  return {
+    full_name: form.full_name.trim(),
+    phone: form.phone.trim(),
+    source: form.source.trim(),
+    note: form.note || null,
+    follow_up: form.follow_up || null,
+    status: form.status,
+  }
+}
+
+function LeadFormFields({
+  form,
+  update,
+}: {
+  form: FormState
+  update: <K extends keyof FormState>(key: K, value: FormState[K]) => void
+}) {
+  return (
+    <>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <Field label="שם מלא" required>
+          <input
+            type="text"
+            required
+            value={form.full_name}
+            onChange={(e) => update('full_name', e.target.value)}
+            className={inputClass}
+          />
+        </Field>
+        <Field label="טלפון" required>
+          <input
+            type="tel"
+            dir="ltr"
+            required
+            value={form.phone}
+            onChange={(e) => update('phone', e.target.value)}
+            className={inputClass}
+          />
+        </Field>
+        <Field label="מקור" required hint="לדוגמה: אינסטגרם, המלצה">
+          <input
+            type="text"
+            required
+            value={form.source}
+            onChange={(e) => update('source', e.target.value)}
+            className={inputClass}
+          />
+        </Field>
+        <Field label="פולו-אפ">
+          <input
+            type="text"
+            value={form.follow_up}
+            onChange={(e) => update('follow_up', e.target.value)}
+            className={inputClass}
+          />
+        </Field>
+        <Field label="סטטוס" required>
+          <div className="flex gap-1 rounded-lg border border-zinc-700 bg-zinc-800 p-1">
+            {STATUSES.map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => update('status', s)}
+                className={`flex-1 rounded-md py-2 text-sm font-semibold transition ${
+                  form.status === s
+                    ? s === 'relevant'
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-zinc-600 text-white'
+                    : 'text-zinc-400'
+                }`}
+              >
+                {statusLabel[s]}
+              </button>
+            ))}
+          </div>
+        </Field>
+      </div>
+      <Field label="הערה">
+        <textarea
+          value={form.note}
+          onChange={(e) => update('note', e.target.value)}
+          rows={2}
+          className={inputClass}
+        />
+      </Field>
+    </>
+  )
+}
+
 export function LeadsPage() {
   const { leads, loading, error: loadError } = useLeads()
-  const [editingId, setEditingId] = useState<string | null>(null)
+
   const [form, setForm] = useState<FormState>(emptyForm)
   const [saving, setSaving] = useState(false)
-  const [deletingId, setDeletingId] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
+
+  const [editingLead, setEditingLead] = useState<Lead | null>(null)
+  const [editForm, setEditForm] = useState<FormState>(emptyForm)
+  const [savingEdit, setSavingEdit] = useState(false)
+  const [editError, setEditError] = useState<string | null>(null)
+
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const [nameFilter, setNameFilter] = useState('')
   const [phoneFilter, setPhoneFilter] = useState('')
@@ -80,14 +177,18 @@ export function LeadsPage() {
     setForm((f) => ({ ...f, [key]: value }))
   }
 
-  function startEdit(lead: Lead) {
-    setEditingId(lead.id)
-    setForm(toForm(lead))
+  function updateEdit<K extends keyof FormState>(key: K, value: FormState[K]) {
+    setEditForm((f) => ({ ...f, [key]: value }))
   }
 
-  function cancelEdit() {
-    setEditingId(null)
-    setForm(emptyForm)
+  function openEdit(lead: Lead) {
+    setEditingLead(lead)
+    setEditForm(toForm(lead))
+    setEditError(null)
+  }
+
+  function closeEdit() {
+    setEditingLead(null)
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -95,27 +196,30 @@ export function LeadsPage() {
     setSaving(true)
     setActionError(null)
 
-    const payload = {
-      full_name: form.full_name.trim(),
-      phone: form.phone.trim(),
-      source: form.source.trim(),
-      note: form.note || null,
-      follow_up: form.follow_up || null,
-      status: form.status,
-    }
-
-    const query = editingId
-      ? supabase.from('leads').update(payload).eq('id', editingId)
-      : supabase.from('leads').insert(payload)
-
-    const { error } = await query
+    const { error } = await supabase.from('leads').insert(toPayload(form))
     setSaving(false)
 
     if (error) {
       setActionError(error.message)
       return
     }
-    cancelEdit()
+    setForm(emptyForm)
+  }
+
+  async function handleEditSubmit(e: FormEvent) {
+    e.preventDefault()
+    if (!editingLead) return
+    setSavingEdit(true)
+    setEditError(null)
+
+    const { error } = await supabase.from('leads').update(toPayload(editForm)).eq('id', editingLead.id)
+    setSavingEdit(false)
+
+    if (error) {
+      setEditError(error.message)
+      return
+    }
+    closeEdit()
   }
 
   async function handleDelete(id: string) {
@@ -132,92 +236,16 @@ export function LeadsPage() {
 
       {error && <p className="rounded-lg bg-red-950/50 px-3 py-2 text-sm text-red-400">{error}</p>}
 
-      <Section title={editingId ? 'עריכת ליד' : 'ליד חדש'}>
+      <Section title="ליד חדש">
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="שם מלא" required>
-              <input
-                type="text"
-                required
-                value={form.full_name}
-                onChange={(e) => update('full_name', e.target.value)}
-                className={inputClass}
-              />
-            </Field>
-            <Field label="טלפון" required>
-              <input
-                type="tel"
-                dir="ltr"
-                required
-                value={form.phone}
-                onChange={(e) => update('phone', e.target.value)}
-                className={inputClass}
-              />
-            </Field>
-            <Field label="מקור" required hint="לדוגמה: אינסטגרם, המלצה">
-              <input
-                type="text"
-                required
-                value={form.source}
-                onChange={(e) => update('source', e.target.value)}
-                className={inputClass}
-              />
-            </Field>
-            <Field label="פולו-אפ">
-              <input
-                type="text"
-                value={form.follow_up}
-                onChange={(e) => update('follow_up', e.target.value)}
-                className={inputClass}
-              />
-            </Field>
-            <Field label="סטטוס" required>
-              <div className="flex gap-1 rounded-lg border border-zinc-700 bg-zinc-800 p-1">
-                {STATUSES.map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => update('status', s)}
-                    className={`flex-1 rounded-md py-2 text-sm font-semibold transition ${
-                      form.status === s
-                        ? s === 'relevant'
-                          ? 'bg-emerald-600 text-white'
-                          : 'bg-zinc-600 text-white'
-                        : 'text-zinc-400'
-                    }`}
-                  >
-                    {statusLabel[s]}
-                  </button>
-                ))}
-              </div>
-            </Field>
-          </div>
-          <Field label="הערה">
-            <textarea
-              value={form.note}
-              onChange={(e) => update('note', e.target.value)}
-              rows={2}
-              className={inputClass}
-            />
-          </Field>
-          <div className="flex gap-2">
-            <button
-              type="submit"
-              disabled={saving}
-              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-50"
-            >
-              {saving ? 'שומר...' : editingId ? 'עדכון ליד' : '+ הוספת ליד'}
-            </button>
-            {editingId && (
-              <button
-                type="button"
-                onClick={cancelEdit}
-                className="rounded-lg border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:border-zinc-500"
-              >
-                ביטול
-              </button>
-            )}
-          </div>
+          <LeadFormFields form={form} update={update} />
+          <button
+            type="submit"
+            disabled={saving}
+            className="self-start rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-50"
+          >
+            {saving ? 'שומר...' : '+ הוספת ליד'}
+          </button>
         </form>
       </Section>
 
@@ -312,7 +340,7 @@ export function LeadsPage() {
                   <td className="px-3 py-2 text-zinc-400">{l.note ?? '—'}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-left">
                     <button
-                      onClick={() => startEdit(l)}
+                      onClick={() => openEdit(l)}
                       className="ml-2 text-xs text-zinc-400 hover:text-emerald-400"
                     >
                       עריכה
@@ -331,6 +359,31 @@ export function LeadsPage() {
           </table>
         </div>
       )}
+
+      <Modal open={editingLead != null} onClose={closeEdit} title="עריכת ליד">
+        <form onSubmit={handleEditSubmit} className="flex flex-col gap-4">
+          {editError && (
+            <p className="rounded-lg bg-red-950/50 px-3 py-2 text-sm text-red-400">{editError}</p>
+          )}
+          <LeadFormFields form={editForm} update={updateEdit} />
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              disabled={savingEdit}
+              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-50"
+            >
+              {savingEdit ? 'שומר...' : 'עדכון ליד'}
+            </button>
+            <button
+              type="button"
+              onClick={closeEdit}
+              className="rounded-lg border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:border-zinc-500"
+            >
+              ביטול
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>
   )
 }
