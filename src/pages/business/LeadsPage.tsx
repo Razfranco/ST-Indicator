@@ -6,14 +6,21 @@ import { Section, Field, inputClass, FilterField, filterInputClass } from '../..
 import { Modal } from '../../components/Modal'
 import type { Lead, LeadStatus } from '../../types/business.types'
 
-const STATUSES: LeadStatus[] = ['relevant', 'not_relevant']
+const STATUSES: LeadStatus[] = ['relevant', 'not_relevant', 'trial_week']
 const statusLabel: Record<LeadStatus, string> = {
   relevant: 'רלוונטי',
   not_relevant: 'לא רלוונטי',
+  trial_week: 'שבוע ניסיון',
 }
 const statusClass: Record<LeadStatus, string> = {
   relevant: 'bg-emerald-950 text-emerald-400',
   not_relevant: 'bg-zinc-800 text-zinc-400',
+  trial_week: 'bg-sky-950 text-sky-400',
+}
+const statusButtonClass: Record<LeadStatus, string> = {
+  relevant: 'bg-emerald-600 text-white',
+  not_relevant: 'bg-zinc-600 text-white',
+  trial_week: 'bg-sky-600 text-white',
 }
 
 interface FormState {
@@ -23,6 +30,7 @@ interface FormState {
   note: string
   follow_up: string
   status: LeadStatus
+  trial_week_expiry: string
 }
 
 const emptyForm: FormState = {
@@ -32,6 +40,7 @@ const emptyForm: FormState = {
   note: '',
   follow_up: '',
   status: 'relevant',
+  trial_week_expiry: '',
 }
 
 function toForm(lead: Lead): FormState {
@@ -42,6 +51,7 @@ function toForm(lead: Lead): FormState {
     note: lead.note ?? '',
     follow_up: lead.follow_up ?? '',
     status: lead.status,
+    trial_week_expiry: lead.trial_week_expiry ?? '',
   }
 }
 
@@ -53,6 +63,7 @@ function toPayload(form: FormState) {
     note: form.note || null,
     follow_up: form.follow_up || null,
     status: form.status,
+    trial_week_expiry: form.status === 'trial_week' ? form.trial_week_expiry || null : null,
   }
 }
 
@@ -110,11 +121,7 @@ function LeadFormFields({
                 type="button"
                 onClick={() => update('status', s)}
                 className={`flex-1 rounded-md py-2 text-sm font-semibold transition ${
-                  form.status === s
-                    ? s === 'relevant'
-                      ? 'bg-emerald-600 text-white'
-                      : 'bg-zinc-600 text-white'
-                    : 'text-zinc-400'
+                  form.status === s ? statusButtonClass[s] : 'text-zinc-400'
                 }`}
               >
                 {statusLabel[s]}
@@ -122,6 +129,17 @@ function LeadFormFields({
             ))}
           </div>
         </Field>
+        {form.status === 'trial_week' && (
+          <Field label="תוקף שבוע ניסיון" required>
+            <input
+              type="date"
+              required
+              value={form.trial_week_expiry}
+              onChange={(e) => update('trial_week_expiry', e.target.value)}
+              className={inputClass}
+            />
+          </Field>
+        )}
       </div>
       <Field label="הערה">
         <textarea
@@ -318,6 +336,7 @@ export function LeadsPage() {
                 <th className="px-3 py-2 text-right font-medium">טלפון</th>
                 <th className="px-3 py-2 text-right font-medium">מקור</th>
                 <th className="px-3 py-2 text-right font-medium">סטטוס</th>
+                <th className="px-3 py-2 text-right font-medium">תוקף שבוע ניסיון</th>
                 <th className="px-3 py-2 text-right font-medium">פולו-אפ</th>
                 <th className="px-3 py-2 text-right font-medium">הערה</th>
                 <th className="px-3 py-2"></th>
@@ -335,6 +354,9 @@ export function LeadsPage() {
                     <span className={`rounded px-1.5 py-0.5 text-xs font-semibold ${statusClass[l.status]}`}>
                       {statusLabel[l.status]}
                     </span>
+                  </td>
+                  <td className="px-3 py-2 text-zinc-300" dir="ltr">
+                    {l.status === 'trial_week' ? (l.trial_week_expiry ?? '—') : '—'}
                   </td>
                   <td className="px-3 py-2 text-zinc-400">{l.follow_up ?? '—'}</td>
                   <td className="px-3 py-2 text-zinc-400">{l.note ?? '—'}</td>

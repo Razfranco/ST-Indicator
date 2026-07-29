@@ -38,7 +38,7 @@ export type CustomerBillingInsert = Omit<CustomerBilling, 'id' | 'created_at'> &
   Partial<Pick<CustomerBilling, 'id' | 'created_at'>>
 export type CustomerBillingUpdate = Partial<CustomerBillingInsert>
 
-export type LeadStatus = 'relevant' | 'not_relevant'
+export type LeadStatus = 'relevant' | 'not_relevant' | 'trial_week'
 
 export type Lead = {
   id: string
@@ -49,6 +49,7 @@ export type Lead = {
   note: string | null
   follow_up: string | null
   status: LeadStatus
+  trial_week_expiry: string | null
 }
 
 export type LeadInsert = Omit<Lead, 'id' | 'created_at'> & Partial<Pick<Lead, 'id' | 'created_at'>>
