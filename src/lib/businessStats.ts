@@ -45,57 +45,56 @@ export function getCustomerAlerts(customer: Customer, billings: CustomerBilling[
   return { expiringSoon, billingDueSoon }
 }
 
-export interface CashflowMonthPoint {
+export interface YearMonthPoint {
   key: string
+  monthIndex: number
   label: string
   income: number
   planCost: number
   expenses: number
   net: number
+  hasData: boolean
 }
 
-function monthKeyLabel(dateStr: string): { key: string; label: string } {
-  const d = new Date(dateStr)
-  const key = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`
-  const label = `${monthLabels[d.getMonth()]} ${d.getFullYear()}`
-  return { key, label }
-}
-
-/** תזרים חודשי: הכנסות (amount) פחות עלויות מסלול (plan_cost) פחות הוצאות נוספות */
-export function computeCashflowByMonth(
+/** 12 המשבצות (ינואר–דצמבר) של שנה נתונה, לתצוגת "יומן שנתי" של תזרים */
+export function computeYearCashflow(
   billings: CustomerBilling[],
   expenses: AdditionalExpense[],
-  limit = 12,
-): CashflowMonthPoint[] {
-  const map = new Map<string, CashflowMonthPoint>()
-
-  function ensure(key: string, label: string): CashflowMonthPoint {
-    let point = map.get(key)
-    if (!point) {
-      point = { key, label, income: 0, planCost: 0, expenses: 0, net: 0 }
-      map.set(key, point)
-    }
-    return point
-  }
+  year: number,
+): YearMonthPoint[] {
+  const months: YearMonthPoint[] = Array.from({ length: 12 }, (_, i) => ({
+    key: `${year}-${pad2(i + 1)}`,
+    monthIndex: i,
+    label: monthLabels[i],
+    income: 0,
+    planCost: 0,
+    expenses: 0,
+    net: 0,
+    hasData: false,
+  }))
 
   for (const b of billings) {
-    const { key, label } = monthKeyLabel(b.billing_month)
-    const point = ensure(key, label)
-    point.income += b.amount
-    point.planCost += b.plan_cost
+    const d = new Date(b.billing_month)
+    if (d.getFullYear() !== year) continue
+    const m = months[d.getMonth()]
+    m.income += b.amount
+    m.planCost += b.plan_cost
+    m.hasData = true
   }
 
   for (const e of expenses) {
-    const { key, label } = monthKeyLabel(e.expense_month)
-    const point = ensure(key, label)
-    point.expenses += e.amount
+    const d = new Date(e.expense_month)
+    if (d.getFullYear() !== year) continue
+    const m = months[d.getMonth()]
+    m.expenses += e.amount
+    m.hasData = true
   }
 
-  const points = [...map.values()].sort((a, b) => a.key.localeCompare(b.key))
-  for (const p of points) {
-    p.net = p.income - p.planCost - p.expenses
+  for (const m of months) {
+    m.net = m.income - m.planCost - m.expenses
   }
-  return points.slice(-limit)
+
+  return months
 }
 
 /** מפתח 'YYYY-MM' של תאריך, לשיוך לחודש (לסינון הוצאות/חיובים) */
