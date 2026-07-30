@@ -1,4 +1,5 @@
 export type CustomerStatus = 'active' | 'paused' | 'cancelled'
+export type CustomerEffectiveStatus = CustomerStatus | 'expired'
 
 export type Customer = {
   id: string

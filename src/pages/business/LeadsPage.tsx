@@ -2,7 +2,16 @@ import { useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import { supabase } from '../../lib/supabaseClient'
 import { useLeads } from '../../lib/useLeads'
-import { Section, Field, inputClass, FilterField, filterInputClass } from '../../components/BusinessFormControls'
+import {
+  Section,
+  Field,
+  inputClass,
+  FilterField,
+  filterInputClass,
+  SortHeader,
+  CardField,
+} from '../../components/BusinessFormControls'
+import type { SortDir } from '../../components/BusinessFormControls'
 import { Modal } from '../../components/Modal'
 import { followUpCountdown } from '../../lib/businessStats'
 import type { Lead, LeadStatus } from '../../types/business.types'
@@ -77,6 +86,103 @@ function toPayload(form: FormState) {
     status: form.status,
     trial_week_expiry: form.status === 'trial_week' ? form.trial_week_expiry || null : null,
   }
+}
+
+type SortField = 'full_name' | 'source' | 'status' | 'follow_up_at' | 'trial_week_expiry'
+
+function compareNullableTime(a: string | null, b: string | null): number {
+  const at = a ? new Date(a).getTime() : Infinity
+  const bt = b ? new Date(b).getTime() : Infinity
+  return at - bt
+}
+
+function FollowUpCell({ followUpAt }: { followUpAt: string | null }) {
+  if (!followUpAt) return <span className="text-zinc-500">—</span>
+  const countdown = followUpCountdown(followUpAt)
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="text-zinc-300" dir="ltr">
+        {new Date(followUpAt).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' })}
+      </span>
+      <span
+        className={`w-fit rounded px-1.5 py-0.5 text-xs font-semibold ${
+          countdown.overdue
+            ? 'bg-red-950 text-red-400'
+            : countdown.dueSoon
+              ? 'bg-orange-950 text-orange-400'
+              : 'bg-zinc-800 text-zinc-400'
+        }`}
+      >
+        {countdown.label}
+      </span>
+    </div>
+  )
+}
+
+function LeadCard({
+  lead: l,
+  onEdit,
+  onDelete,
+  deleting,
+}: {
+  lead: Lead
+  onEdit: () => void
+  onDelete: () => void
+  deleting: boolean
+}) {
+  return (
+    <div className="flex flex-col gap-2 rounded-xl border border-zinc-800 bg-zinc-900/40 p-3">
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-medium text-zinc-200">{l.full_name}</span>
+        <span className={`rounded px-1.5 py-0.5 text-xs font-semibold ${statusClass[l.status]}`}>
+          {statusLabel[l.status]}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+        <CardField label="טלפון">
+          <span dir="ltr">{l.phone}</span>
+        </CardField>
+        <CardField label="מקור">{l.source}</CardField>
+        <CardField label="תוקף שבוע ניסיון">
+          <span dir="ltr">{l.status === 'trial_week' ? (l.trial_week_expiry ?? '—') : '—'}</span>
+        </CardField>
+        <CardField label="מועד פולו-אפ">
+          <FollowUpCell followUpAt={l.follow_up_at} />
+        </CardField>
+      </div>
+
+      {(l.follow_up || l.note) && (
+        <div className="flex flex-col gap-1 border-t border-zinc-800 pt-2 text-xs text-zinc-400">
+          {l.follow_up && (
+            <p>
+              <span className="text-zinc-500">הערת פולו-אפ: </span>
+              {l.follow_up}
+            </p>
+          )}
+          {l.note && (
+            <p>
+              <span className="text-zinc-500">הערה: </span>
+              {l.note}
+            </p>
+          )}
+        </div>
+      )}
+
+      <div className="flex gap-3 border-t border-zinc-800 pt-2">
+        <button onClick={onEdit} className="text-xs text-zinc-400 hover:text-emerald-400">
+          עריכה
+        </button>
+        <button
+          onClick={onDelete}
+          disabled={deleting}
+          className="text-xs text-zinc-400 hover:text-red-400 disabled:opacity-50"
+        >
+          מחיקה
+        </button>
+      </div>
+    </div>
+  )
 }
 
 function LeadFormFields({
@@ -193,6 +299,9 @@ export function LeadsPage() {
   const [statusFilter, setStatusFilter] = useState<LeadStatus | ''>('')
   const [followUpFilter, setFollowUpFilter] = useState('')
 
+  const [sortField, setSortField] = useState<SortField | null>(null)
+  const [sortDir, setSortDir] = useState<SortDir>('asc')
+
   const error = loadError ?? actionError
 
   const sourceOptions = useMemo(
@@ -210,6 +319,42 @@ export function LeadsPage() {
       return true
     })
   }, [leads, nameFilter, phoneFilter, sourceFilter, statusFilter, followUpFilter])
+
+  const sorted = useMemo(() => {
+    if (!sortField) return filtered
+    const copy = [...filtered]
+    copy.sort((a, b) => {
+      let cmp = 0
+      switch (sortField) {
+        case 'full_name':
+          cmp = a.full_name.localeCompare(b.full_name, 'he')
+          break
+        case 'source':
+          cmp = a.source.localeCompare(b.source, 'he')
+          break
+        case 'status':
+          cmp = statusLabel[a.status].localeCompare(statusLabel[b.status], 'he')
+          break
+        case 'follow_up_at':
+          cmp = compareNullableTime(a.follow_up_at, b.follow_up_at)
+          break
+        case 'trial_week_expiry':
+          cmp = compareNullableTime(a.trial_week_expiry, b.trial_week_expiry)
+          break
+      }
+      return sortDir === 'asc' ? cmp : -cmp
+    })
+    return copy
+  }, [filtered, sortField, sortDir])
+
+  function toggleSort(field: SortField) {
+    if (field === sortField) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortField(field)
+      setSortDir('asc')
+    }
+  }
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((f) => ({ ...f, [key]: value }))
@@ -345,92 +490,91 @@ export function LeadsPage() {
 
       {loading ? (
         <p className="py-10 text-center text-zinc-500">טוען לידים...</p>
-      ) : filtered.length === 0 ? (
+      ) : sorted.length === 0 ? (
         <p className="py-10 text-center text-zinc-500">אין לידים להצגה.</p>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-zinc-800">
-          <table className="w-full min-w-[980px] text-sm">
-            <thead className="bg-zinc-900 text-zinc-400">
-              <tr>
-                <th className="px-3 py-2 text-right font-medium">שם מלא</th>
-                <th className="px-3 py-2 text-right font-medium">טלפון</th>
-                <th className="px-3 py-2 text-right font-medium">מקור</th>
-                <th className="px-3 py-2 text-right font-medium">סטטוס</th>
-                <th className="px-3 py-2 text-right font-medium">תוקף שבוע ניסיון</th>
-                <th className="px-3 py-2 text-right font-medium">מועד פולו-אפ</th>
-                <th className="px-3 py-2 text-right font-medium">הערת פולו-אפ</th>
-                <th className="px-3 py-2 text-right font-medium">הערה</th>
-                <th className="px-3 py-2"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-800">
-              {filtered.map((l) => (
-                <tr key={l.id} className="hover:bg-zinc-900/60">
-                  <td className="px-3 py-2 font-medium text-zinc-200">{l.full_name}</td>
-                  <td className="px-3 py-2 text-zinc-300" dir="ltr">
-                    {l.phone}
-                  </td>
-                  <td className="px-3 py-2 text-zinc-300">{l.source}</td>
-                  <td className="px-3 py-2">
-                    <span className={`rounded px-1.5 py-0.5 text-xs font-semibold ${statusClass[l.status]}`}>
-                      {statusLabel[l.status]}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2 text-zinc-300" dir="ltr">
-                    {l.status === 'trial_week' ? (l.trial_week_expiry ?? '—') : '—'}
-                  </td>
-                  <td className="px-3 py-2">
-                    {l.follow_up_at ? (
-                      <div className="flex flex-col gap-0.5">
-                        <span className="text-zinc-300" dir="ltr">
-                          {new Date(l.follow_up_at).toLocaleString('he-IL', {
-                            dateStyle: 'short',
-                            timeStyle: 'short',
-                          })}
-                        </span>
-                        {(() => {
-                          const countdown = followUpCountdown(l.follow_up_at)
-                          return (
-                            <span
-                              className={`w-fit rounded px-1.5 py-0.5 text-xs font-semibold ${
-                                countdown.overdue
-                                  ? 'bg-red-950 text-red-400'
-                                  : countdown.dueSoon
-                                    ? 'bg-orange-950 text-orange-400'
-                                    : 'bg-zinc-800 text-zinc-400'
-                              }`}
-                            >
-                              {countdown.label}
-                            </span>
-                          )
-                        })()}
-                      </div>
-                    ) : (
-                      <span className="text-zinc-500">—</span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2 text-zinc-400">{l.follow_up ?? '—'}</td>
-                  <td className="px-3 py-2 text-zinc-400">{l.note ?? '—'}</td>
-                  <td className="whitespace-nowrap px-3 py-2 text-left">
-                    <button
-                      onClick={() => openEdit(l)}
-                      className="ml-2 text-xs text-zinc-400 hover:text-emerald-400"
-                    >
-                      עריכה
-                    </button>
-                    <button
-                      onClick={() => handleDelete(l.id)}
-                      disabled={deletingId === l.id}
-                      className="text-xs text-zinc-400 hover:text-red-400 disabled:opacity-50"
-                    >
-                      מחיקה
-                    </button>
-                  </td>
+        <>
+          <div className="flex flex-col gap-3 sm:hidden">
+            {sorted.map((l) => (
+              <LeadCard
+                key={l.id}
+                lead={l}
+                onEdit={() => openEdit(l)}
+                onDelete={() => handleDelete(l.id)}
+                deleting={deletingId === l.id}
+              />
+            ))}
+          </div>
+
+          <div className="hidden overflow-x-auto rounded-xl border border-zinc-800 sm:block">
+            <table className="w-full min-w-[980px] text-sm">
+              <thead className="bg-zinc-900 text-zinc-400">
+                <tr>
+                  <SortHeader label="שם מלא" field="full_name" current={sortField} dir={sortDir} onClick={toggleSort} />
+                  <th className="px-3 py-2 text-right font-medium">טלפון</th>
+                  <SortHeader label="מקור" field="source" current={sortField} dir={sortDir} onClick={toggleSort} />
+                  <SortHeader label="סטטוס" field="status" current={sortField} dir={sortDir} onClick={toggleSort} />
+                  <SortHeader
+                    label="תוקף שבוע ניסיון"
+                    field="trial_week_expiry"
+                    current={sortField}
+                    dir={sortDir}
+                    onClick={toggleSort}
+                  />
+                  <SortHeader
+                    label="מועד פולו-אפ"
+                    field="follow_up_at"
+                    current={sortField}
+                    dir={sortDir}
+                    onClick={toggleSort}
+                  />
+                  <th className="px-3 py-2 text-right font-medium">הערת פולו-אפ</th>
+                  <th className="px-3 py-2 text-right font-medium">הערה</th>
+                  <th className="px-3 py-2"></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-zinc-800">
+                {sorted.map((l) => (
+                  <tr key={l.id} className="hover:bg-zinc-900/60">
+                    <td className="px-3 py-2 font-medium text-zinc-200">{l.full_name}</td>
+                    <td className="px-3 py-2 text-zinc-300" dir="ltr">
+                      {l.phone}
+                    </td>
+                    <td className="px-3 py-2 text-zinc-300">{l.source}</td>
+                    <td className="px-3 py-2">
+                      <span className={`rounded px-1.5 py-0.5 text-xs font-semibold ${statusClass[l.status]}`}>
+                        {statusLabel[l.status]}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-zinc-300" dir="ltr">
+                      {l.status === 'trial_week' ? (l.trial_week_expiry ?? '—') : '—'}
+                    </td>
+                    <td className="px-3 py-2">
+                      <FollowUpCell followUpAt={l.follow_up_at} />
+                    </td>
+                    <td className="px-3 py-2 text-zinc-400">{l.follow_up ?? '—'}</td>
+                    <td className="px-3 py-2 text-zinc-400">{l.note ?? '—'}</td>
+                    <td className="whitespace-nowrap px-3 py-2 text-left">
+                      <button
+                        onClick={() => openEdit(l)}
+                        className="ml-2 text-xs text-zinc-400 hover:text-emerald-400"
+                      >
+                        עריכה
+                      </button>
+                      <button
+                        onClick={() => handleDelete(l.id)}
+                        disabled={deletingId === l.id}
+                        className="text-xs text-zinc-400 hover:text-red-400 disabled:opacity-50"
+                      >
+                        מחיקה
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
 
       <Modal open={editingLead != null} onClose={closeEdit} title="עריכת ליד">

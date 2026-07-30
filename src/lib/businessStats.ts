@@ -1,4 +1,9 @@
-import type { AdditionalExpense, Customer, CustomerBilling } from '../types/business.types'
+import type {
+  AdditionalExpense,
+  Customer,
+  CustomerBilling,
+  CustomerEffectiveStatus,
+} from '../types/business.types'
 
 const monthLabels = ['ינו', 'פבר', 'מרץ', 'אפר', 'מאי', 'יונ', 'יול', 'אוג', 'ספט', 'אוק', 'נוב', 'דצמ']
 
@@ -13,6 +18,17 @@ export function daysUntil(date: string | Date): number {
   const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime()
   const targetMidnight = new Date(target.getFullYear(), target.getMonth(), target.getDate()).getTime()
   return Math.round((targetMidnight - todayMidnight) / 86400000)
+}
+
+/**
+ * סטטוס הלקוח כפי שיש להציג אותו כרגע: 'active' שכבר עבר את תאריך סיום המנוי
+ * מוצג כ-'expired', בלי לשמור זאת ב-DB (הוא יכול להשתנות בלי שאף אחד יערוך את הרשומה).
+ */
+export function getEffectiveStatus(customer: Customer): CustomerEffectiveStatus {
+  if (customer.status === 'active' && daysUntil(customer.subscription_end_date) < 0) {
+    return 'expired'
+  }
+  return customer.status
 }
 
 function addMonths(dateStr: string, n: number): Date {
