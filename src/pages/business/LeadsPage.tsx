@@ -4,7 +4,15 @@ import { supabase } from '../../lib/supabaseClient'
 import { useLeads } from '../../lib/useLeads'
 import { Section, Field, inputClass, FilterField, filterInputClass } from '../../components/BusinessFormControls'
 import { Modal } from '../../components/Modal'
+import { followUpCountdown } from '../../lib/businessStats'
 import type { Lead, LeadStatus } from '../../types/business.types'
+
+function toDatetimeLocalValue(iso: string | null): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
 
 const STATUSES: LeadStatus[] = ['relevant', 'not_relevant', 'trial_week']
 const statusLabel: Record<LeadStatus, string> = {
@@ -29,6 +37,7 @@ interface FormState {
   source: string
   note: string
   follow_up: string
+  follow_up_at: string
   status: LeadStatus
   trial_week_expiry: string
 }
@@ -39,6 +48,7 @@ const emptyForm: FormState = {
   source: '',
   note: '',
   follow_up: '',
+  follow_up_at: '',
   status: 'relevant',
   trial_week_expiry: '',
 }
@@ -50,6 +60,7 @@ function toForm(lead: Lead): FormState {
     source: lead.source,
     note: lead.note ?? '',
     follow_up: lead.follow_up ?? '',
+    follow_up_at: toDatetimeLocalValue(lead.follow_up_at),
     status: lead.status,
     trial_week_expiry: lead.trial_week_expiry ?? '',
   }
@@ -62,6 +73,7 @@ function toPayload(form: FormState) {
     source: form.source.trim(),
     note: form.note || null,
     follow_up: form.follow_up || null,
+    follow_up_at: form.follow_up_at ? new Date(form.follow_up_at).toISOString() : null,
     status: form.status,
     trial_week_expiry: form.status === 'trial_week' ? form.trial_week_expiry || null : null,
   }
@@ -105,11 +117,19 @@ function LeadFormFields({
             className={inputClass}
           />
         </Field>
-        <Field label="פולו-אפ">
+        <Field label="הערת פולו-אפ">
           <input
             type="text"
             value={form.follow_up}
             onChange={(e) => update('follow_up', e.target.value)}
+            className={inputClass}
+          />
+        </Field>
+        <Field label="תאריך ושעה לפולו-אפ" hint="למשל: מועד לחזור אליו או שיחת מכירה שנקבעה">
+          <input
+            type="datetime-local"
+            value={form.follow_up_at}
+            onChange={(e) => update('follow_up_at', e.target.value)}
             className={inputClass}
           />
         </Field>
@@ -329,7 +349,7 @@ export function LeadsPage() {
         <p className="py-10 text-center text-zinc-500">אין לידים להצגה.</p>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-zinc-800">
-          <table className="w-full min-w-[720px] text-sm">
+          <table className="w-full min-w-[980px] text-sm">
             <thead className="bg-zinc-900 text-zinc-400">
               <tr>
                 <th className="px-3 py-2 text-right font-medium">שם מלא</th>
@@ -337,7 +357,8 @@ export function LeadsPage() {
                 <th className="px-3 py-2 text-right font-medium">מקור</th>
                 <th className="px-3 py-2 text-right font-medium">סטטוס</th>
                 <th className="px-3 py-2 text-right font-medium">תוקף שבוע ניסיון</th>
-                <th className="px-3 py-2 text-right font-medium">פולו-אפ</th>
+                <th className="px-3 py-2 text-right font-medium">מועד פולו-אפ</th>
+                <th className="px-3 py-2 text-right font-medium">הערת פולו-אפ</th>
                 <th className="px-3 py-2 text-right font-medium">הערה</th>
                 <th className="px-3 py-2"></th>
               </tr>
@@ -357,6 +378,36 @@ export function LeadsPage() {
                   </td>
                   <td className="px-3 py-2 text-zinc-300" dir="ltr">
                     {l.status === 'trial_week' ? (l.trial_week_expiry ?? '—') : '—'}
+                  </td>
+                  <td className="px-3 py-2">
+                    {l.follow_up_at ? (
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-zinc-300" dir="ltr">
+                          {new Date(l.follow_up_at).toLocaleString('he-IL', {
+                            dateStyle: 'short',
+                            timeStyle: 'short',
+                          })}
+                        </span>
+                        {(() => {
+                          const countdown = followUpCountdown(l.follow_up_at)
+                          return (
+                            <span
+                              className={`w-fit rounded px-1.5 py-0.5 text-xs font-semibold ${
+                                countdown.overdue
+                                  ? 'bg-red-950 text-red-400'
+                                  : countdown.dueSoon
+                                    ? 'bg-orange-950 text-orange-400'
+                                    : 'bg-zinc-800 text-zinc-400'
+                              }`}
+                            >
+                              {countdown.label}
+                            </span>
+                          )
+                        })()}
+                      </div>
+                    ) : (
+                      <span className="text-zinc-500">—</span>
+                    )}
                   </td>
                   <td className="px-3 py-2 text-zinc-400">{l.follow_up ?? '—'}</td>
                   <td className="px-3 py-2 text-zinc-400">{l.note ?? '—'}</td>

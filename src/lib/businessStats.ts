@@ -108,3 +108,33 @@ export function currentMonthKey(): string {
   const d = new Date()
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`
 }
+
+export interface FollowUpCountdown {
+  label: string
+  overdue: boolean
+  dueSoon: boolean
+}
+
+const FOLLOW_UP_SOON_MS = 24 * 60 * 60 * 1000
+
+/** כמה זמן נשאר (או עבר) עד מועד פולו-אפ נתון, לתצוגה ולהדגשה חזותית */
+export function followUpCountdown(datetime: string): FollowUpCountdown {
+  const diffMs = new Date(datetime).getTime() - Date.now()
+  const overdue = diffMs < 0
+  const absMs = Math.abs(diffMs)
+
+  const minutes = Math.round(absMs / 60000)
+  const hours = Math.round(absMs / 3600000)
+  const days = Math.round(absMs / 86400000)
+
+  let amount: string
+  if (minutes < 60) amount = `${minutes} דק'`
+  else if (hours < 24) amount = `${hours} שע'`
+  else amount = `${days} ימים`
+
+  return {
+    label: overdue ? `באיחור של ${amount}` : `בעוד ${amount}`,
+    overdue,
+    dueSoon: !overdue && absMs <= FOLLOW_UP_SOON_MS,
+  }
+}

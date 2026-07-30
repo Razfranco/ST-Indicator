@@ -48,6 +48,7 @@ export type Lead = {
   source: string
   note: string | null
   follow_up: string | null
+  follow_up_at: string | null
   status: LeadStatus
   trial_week_expiry: string | null
 }
