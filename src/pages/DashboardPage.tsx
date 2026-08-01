@@ -71,9 +71,16 @@ export function DashboardPage() {
   const [calMonth, setCalMonth] = useState(now.getMonth())
 
   const scopedTrades = useMemo(() => {
+    if (scope === 'monthly') {
+      // בסקופ חודשי, הנתונים למעלה תמיד תואמים לחודש שמוצג ביומן (calYear/calMonth),
+      // לא בהכרח לחודש הקלנדרי הנוכחי — כדי שניווט ביומן יעדכן גם את הסטטיסטיקות.
+      const start = new Date(calYear, calMonth, 1)
+      const end = new Date(calYear, calMonth + 1, 0, 23, 59, 59, 999)
+      return filterTradesByRange(trades, start, end)
+    }
     const { start, end } = currentPeriodBounds(scope)
     return filterTradesByRange(trades, start, end)
-  }, [trades, scope])
+  }, [trades, scope, calYear, calMonth])
 
   const chartBucket = CHART_BUCKET[scope]
   const chartLimit = scope === 'total' ? 12 : 60
@@ -118,7 +125,12 @@ export function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-5 pb-6">
-      <h2 className="text-xl font-bold">דשבורד</h2>
+      <h2 className="text-xl font-bold">
+        דשבורד
+        {scope === 'monthly' && (
+          <span className="mr-2 text-sm font-normal text-zinc-500">— {calendar.monthLabel}</span>
+        )}
+      </h2>
 
       <div className="flex gap-1 self-start rounded-lg border border-zinc-700 bg-zinc-800 p-1">
         {(['monthly', 'weekly', 'daily', 'total'] as DashboardScope[]).map((s) => (
@@ -174,7 +186,7 @@ export function DashboardPage() {
 
       <section className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
         <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-zinc-400">יומן חודשי (החודש הנוכחי)</h3>
+          <h3 className="text-sm font-semibold text-zinc-400">יומן חודשי</h3>
           <div className="flex items-center gap-2 text-sm">
             <button
               type="button"

@@ -11,23 +11,43 @@ const resultClass: Record<TradeResult, string> = {
   BE: 'bg-zinc-800 text-zinc-400',
 }
 
+type ReportPeriod = 'weekly' | 'monthly'
+
+const PERIOD_LABELS: Record<ReportPeriod, string> = {
+  weekly: 'שבועי',
+  monthly: 'חודשי',
+}
+
 function formatDateHe(d: Date): string {
   return d.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
 export function ReportPage() {
   const { trades, loading, error } = useTrades()
+  const [periodMode, setPeriodMode] = useState<ReportPeriod>('weekly')
   const [weekOffset, setWeekOffset] = useState(0)
+  const [monthOffset, setMonthOffset] = useState(0)
   const [exporting, setExporting] = useState(false)
   const printableRef = useRef<HTMLDivElement>(null)
 
-  const { start, end } = useMemo(() => {
+  const offset = periodMode === 'weekly' ? weekOffset : monthOffset
+
+  const { start, end, rangeLabel } = useMemo(() => {
+    if (periodMode === 'monthly') {
+      const now = new Date()
+      const base = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1)
+      const start = new Date(base.getFullYear(), base.getMonth(), 1)
+      const end = new Date(base.getFullYear(), base.getMonth() + 1, 0, 23, 59, 59, 999)
+      const rangeLabel = base.toLocaleDateString('he-IL', { month: 'long', year: 'numeric' })
+      return { start, end, rangeLabel }
+    }
     const base = new Date()
     base.setDate(base.getDate() + weekOffset * 7)
-    return weekRange(base)
-  }, [weekOffset])
+    const { start, end } = weekRange(base)
+    return { start, end, rangeLabel: `${formatDateHe(start)} – ${formatDateHe(end)}` }
+  }, [periodMode, weekOffset, monthOffset])
 
-  const weekTrades = useMemo(
+  const periodTrades = useMemo(
     () =>
       trades.filter((t) => {
         const d = new Date(t.entry_datetime)
@@ -36,14 +56,24 @@ export function ReportPage() {
     [trades, start, end],
   )
 
-  const totals = useMemo(() => computeDashboardTotals(weekTrades), [weekTrades])
-  const winRate = useMemo(() => computeTradeWinRate(weekTrades), [weekTrades])
+  const totals = useMemo(() => computeDashboardTotals(periodTrades), [periodTrades])
+  const winRate = useMemo(() => computeTradeWinRate(periodTrades), [periodTrades])
+
+  function goPrev() {
+    if (periodMode === 'weekly') setWeekOffset((w) => w - 1)
+    else setMonthOffset((m) => m - 1)
+  }
+
+  function goNext() {
+    if (periodMode === 'weekly') setWeekOffset((w) => w + 1)
+    else setMonthOffset((m) => m + 1)
+  }
 
   async function handleExport() {
     if (!printableRef.current) return
     setExporting(true)
     try {
-      const filename = `דוח-מסחר-שבועי-${start.toISOString().slice(0, 10)}.pdf`
+      const filename = `דוח-מסחר-${PERIOD_LABELS[periodMode]}-${start.toISOString().slice(0, 10)}.pdf`
       const { exportElementToPdf } = await import('../lib/exportPdf')
       await exportElementToPdf(printableRef.current, filename)
     } finally {
@@ -62,40 +92,57 @@ export function ReportPage() {
   return (
     <div className="flex flex-col gap-5 pb-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold">דוח מסחר שבועי</h2>
+        <h2 className="text-xl font-bold">דוח מסחר תקופתי</h2>
         <button
           type="button"
           onClick={handleExport}
-          disabled={exporting || weekTrades.length === 0}
+          disabled={exporting || periodTrades.length === 0}
           className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-50"
         >
           {exporting ? 'מייצא...' : 'ייצוא ל-PDF'}
         </button>
       </div>
 
+      <div className="flex gap-1 self-start rounded-lg border border-zinc-700 bg-zinc-800 p-1">
+        {(['weekly', 'monthly'] as ReportPeriod[]).map((p) => (
+          <button
+            key={p}
+            type="button"
+            onClick={() => setPeriodMode(p)}
+            className={`rounded-md px-4 py-1.5 text-sm font-medium transition ${
+              periodMode === p ? 'bg-emerald-600 text-white' : 'text-zinc-400'
+            }`}
+          >
+            {PERIOD_LABELS[p]}
+          </button>
+        ))}
+      </div>
+
       <div className="flex items-center justify-center gap-2 text-sm">
         <button
           type="button"
-          onClick={() => setWeekOffset((w) => w - 1)}
+          onClick={goPrev}
           className="rounded-md border border-zinc-700 px-2 py-1 text-zinc-300 hover:border-zinc-500"
         >
-          ‹ שבוע קודם
+          ‹ {periodMode === 'weekly' ? 'שבוע' : 'חודש'} קודם
         </button>
         <span className="min-w-[160px] text-center font-medium text-zinc-200" dir="ltr">
-          {formatDateHe(start)} – {formatDateHe(end)}
+          {rangeLabel}
         </span>
         <button
           type="button"
-          onClick={() => setWeekOffset((w) => w + 1)}
-          disabled={weekOffset >= 0}
+          onClick={goNext}
+          disabled={offset >= 0}
           className="rounded-md border border-zinc-700 px-2 py-1 text-zinc-300 hover:border-zinc-500 disabled:opacity-30"
         >
-          שבוע הבא ›
+          {periodMode === 'weekly' ? 'שבוע' : 'חודש'} הבא ›
         </button>
       </div>
 
-      {weekTrades.length === 0 && (
-        <p className="py-6 text-center text-sm text-zinc-500">אין עסקאות בשבוע זה.</p>
+      {periodTrades.length === 0 && (
+        <p className="py-6 text-center text-sm text-zinc-500">
+          אין עסקאות ב{periodMode === 'weekly' ? 'שבוע' : 'חודש'} זה.
+        </p>
       )}
 
       <div ref={printableRef} className="relative rounded-xl border border-zinc-800 bg-zinc-950 p-6">
@@ -104,9 +151,9 @@ export function ReportPage() {
         </div>
 
         <div className="mb-6 text-center">
-          <h3 className="text-lg font-bold text-zinc-100">דוח מסחר שבועי — ST Indicator</h3>
+          <h3 className="text-lg font-bold text-zinc-100">דוח מסחר {PERIOD_LABELS[periodMode]} — ST Indicator</h3>
           <p className="mt-1 text-sm text-zinc-500" dir="ltr">
-            {formatDateHe(start)} – {formatDateHe(end)}
+            {rangeLabel}
           </p>
         </div>
 
@@ -123,7 +170,7 @@ export function ReportPage() {
           <ReportStat label="ימים רווחיים" value={formatPercent(totals.profitableDaysPct)} />
         </div>
 
-        {weekTrades.length > 0 && (
+        {periodTrades.length > 0 && (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[400px] table-fixed text-xs">
               <colgroup>
@@ -141,7 +188,7 @@ export function ReportPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-900">
-                {weekTrades.map((t) => (
+                {periodTrades.map((t) => (
                   <tr key={t.id}>
                     <td className="px-2 py-1.5 text-right text-zinc-300" dir="ltr">
                       {new Date(t.entry_datetime).toLocaleDateString('he-IL', {

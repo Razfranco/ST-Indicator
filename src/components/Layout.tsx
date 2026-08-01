@@ -6,7 +6,7 @@ const baseNavItems = [
   { to: '/', label: 'עסקאות', icon: ListIcon },
   { to: '/new', label: 'הזנה', icon: PlusIcon },
   { to: '/dashboard', label: 'דשבורד', icon: ChartIcon },
-  { to: '/report', label: 'דוח שבועי', icon: DocIcon },
+  { to: '/report', label: 'דוח תקופתי', icon: DocIcon },
 ]
 
 export function Layout({ children }: { children: ReactNode }) {
