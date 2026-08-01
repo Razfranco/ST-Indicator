@@ -1,7 +1,15 @@
 import { useMemo, useRef, useState } from 'react'
 import { useTrades } from '../lib/useTrades'
-import { computeDashboardTotals, computeTradeWinRate, weekRange } from '../lib/stats'
-import { formatCurrency, formatPercent } from '../lib/format'
+import {
+  computeDashboardTotals,
+  computeProfitFactor,
+  computeResultCounts,
+  computeTradeBreakevenRate,
+  computeTradeLossRate,
+  computeTradeWinRate,
+  weekRange,
+} from '../lib/stats'
+import { formatCurrency, formatPercent, formatProfitFactor } from '../lib/format'
 import type { TradeResult } from '../types/database.types'
 
 const resultClass: Record<TradeResult, string> = {
@@ -58,6 +66,10 @@ export function ReportPage() {
 
   const totals = useMemo(() => computeDashboardTotals(periodTrades), [periodTrades])
   const winRate = useMemo(() => computeTradeWinRate(periodTrades), [periodTrades])
+  const lossRate = useMemo(() => computeTradeLossRate(periodTrades), [periodTrades])
+  const breakevenRate = useMemo(() => computeTradeBreakevenRate(periodTrades), [periodTrades])
+  const resultCounts = useMemo(() => computeResultCounts(periodTrades), [periodTrades])
+  const profitFactor = useMemo(() => computeProfitFactor(periodTrades), [periodTrades])
 
   function goPrev() {
     if (periodMode === 'weekly') setWeekOffset((w) => w - 1)
@@ -157,17 +169,41 @@ export function ReportPage() {
           </p>
         </div>
 
-        <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <ReportStat
             label="רווח/הפסד כולל"
             value={formatCurrency(totals.totalPnl)}
             tone={totals.totalPnl > 0 ? 'positive' : totals.totalPnl < 0 ? 'negative' : 'neutral'}
           />
-          <ReportStat label="אחוז הצלחה" value={formatPercent(winRate)} />
-          <ReportStat label="מספר עסקאות" value={String(totals.tradeCount)} />
+          <ReportStat
+            label="Profit Factor"
+            value={formatProfitFactor(profitFactor)}
+            tone={profitFactor == null ? 'neutral' : profitFactor >= 1 ? 'positive' : 'negative'}
+          />
+          <ReportStat label="אחוז ימים רווחיים" value={formatPercent(totals.profitableDaysPct)} />
+          <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3 text-center">
+            <div className="text-xs text-zinc-500">מרוויחות מול מפסידות מול ברייק-איבן</div>
+            <div className="mt-1 text-lg font-semibold" dir="ltr">
+              <span className="text-emerald-400">{formatPercent(winRate)}</span>
+              <span className="text-zinc-600"> / </span>
+              <span className="text-red-400">{formatPercent(lossRate)}</span>
+              <span className="text-zinc-600"> / </span>
+              <span className="text-zinc-400">{formatPercent(breakevenRate)}</span>
+            </div>
+          </div>
+          <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3 text-center">
+            <div className="text-xs text-zinc-500">מספר עסקאות (מרוויחות / מפסידות / BE)</div>
+            <div className="mt-1 text-lg font-semibold" dir="ltr">
+              <span className="text-emerald-400">{resultCounts.win}</span>
+              <span className="text-zinc-600"> / </span>
+              <span className="text-red-400">{resultCounts.loss}</span>
+              <span className="text-zinc-600"> / </span>
+              <span className="text-zinc-400">{resultCounts.breakeven}</span>
+            </div>
+          </div>
           <ReportStat label="רווח ממוצע" value={formatCurrency(totals.avgWin)} tone="positive" />
           <ReportStat label="הפסד ממוצע" value={formatCurrency(totals.avgLoss)} tone="negative" />
-          <ReportStat label="ימים רווחיים" value={formatPercent(totals.profitableDaysPct)} />
+          <ReportStat label="מספר עסקאות" value={String(totals.tradeCount)} />
         </div>
 
         {periodTrades.length > 0 && (
