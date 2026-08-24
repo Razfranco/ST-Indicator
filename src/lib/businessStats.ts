@@ -46,17 +46,23 @@ const ALERT_WINDOW_DAYS = 7
 /**
  * הדגשה חזותית בלבד (לא מערכת התראות): מנוי שמסתיים תוך שבוע, או לקוח עם
  * חיוב חודשי חוזר שהחיוב הבא שלו (billing_month האחרון + חודש) מתקרב.
+ *
+ * הבדיקה מתבססת על החיוב האחרון בפועל (לפי billing_month) — לא על החיוב
+ * המסומן "חודשי" האחרון. כך חיוב חדש שלא מסומן "חודשי" (למשל תשלום חד-פעמי
+ * מראש שמחליף חיוב חוזר) מוציא את הלקוח מההתראה, גם אם היו לו חיובים
+ * חודשיים מסומנים בעבר.
  */
 export function getCustomerAlerts(customer: Customer, billings: CustomerBilling[]): CustomerAlerts {
   const expiringSoon = daysUntil(customer.subscription_end_date) <= ALERT_WINDOW_DAYS
 
-  const latestRecurring = billings
-    .filter((b) => b.customer_id === customer.id && b.is_recurring_monthly)
+  const latestBilling = billings
+    .filter((b) => b.customer_id === customer.id)
     .sort((a, b) => b.billing_month.localeCompare(a.billing_month))[0]
 
-  const billingDueSoon = latestRecurring
-    ? daysUntil(addMonths(latestRecurring.billing_month, 1)) <= ALERT_WINDOW_DAYS
-    : false
+  const billingDueSoon =
+    latestBilling && latestBilling.is_recurring_monthly
+      ? daysUntil(addMonths(latestBilling.billing_month, 1)) <= ALERT_WINDOW_DAYS
+      : false
 
   return { expiringSoon, billingDueSoon }
 }
