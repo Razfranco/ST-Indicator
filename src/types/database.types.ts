@@ -31,6 +31,7 @@ export type Trade = {
   pnl_dollars: number | null
   result: TradeResult
   notes: string | null
+  screenshot_url: string | null
 }
 
 export type TradeInsert = Omit<Trade, 'id' | 'created_at' | 'user_id'> &

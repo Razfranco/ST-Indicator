@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
@@ -49,6 +49,7 @@ interface FormState {
   pnl_dollars: string
   result: TradeResult
   notes: string
+  screenshot_url: string
 }
 
 const initialState: FormState = {
@@ -64,6 +65,7 @@ const initialState: FormState = {
   pnl_dollars: '',
   result: 'TP1',
   notes: '',
+  screenshot_url: '',
 }
 
 export function TradeFormPage() {
@@ -76,6 +78,7 @@ export function TradeFormPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(isEditing)
+  const [uploadingScreenshot, setUploadingScreenshot] = useState(false)
 
   useEffect(() => {
     if (!isEditing || !id) return
@@ -107,6 +110,7 @@ export function TradeFormPage() {
           pnl_dollars: data.pnl_dollars != null ? String(data.pnl_dollars) : '',
           result: data.result,
           notes: data.notes ?? '',
+          screenshot_url: data.screenshot_url ?? '',
         })
         setLoading(false)
       })
@@ -125,6 +129,48 @@ export function TradeFormPage() {
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((f) => ({ ...f, [key]: value }))
   }
+
+  const uploadScreenshot = useCallback(
+    async (file: File) => {
+      if (!user) return
+      setUploadingScreenshot(true)
+      setError(null)
+      try {
+        const ext = file.name.split('.').pop() ?? 'png'
+        const path = `${user.id}/${Date.now()}-${crypto.randomUUID()}.${ext}`
+        const { error: uploadError } = await supabase.storage
+          .from('trade-screenshots')
+          .upload(path, file, { upsert: false })
+        if (uploadError) throw uploadError
+        const { data } = supabase.storage.from('trade-screenshots').getPublicUrl(path)
+        update('screenshot_url', data.publicUrl)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'העלאת התמונה נכשלה')
+      } finally {
+        setUploadingScreenshot(false)
+      }
+    },
+    [user],
+  )
+
+  useEffect(() => {
+    function handlePaste(e: ClipboardEvent) {
+      const items = e.clipboardData?.items
+      if (!items) return
+      for (const item of items) {
+        if (item.type.startsWith('image/')) {
+          const file = item.getAsFile()
+          if (file) {
+            e.preventDefault()
+            uploadScreenshot(file)
+          }
+          return
+        }
+      }
+    }
+    window.addEventListener('paste', handlePaste)
+    return () => window.removeEventListener('paste', handlePaste)
+  }, [uploadScreenshot])
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -160,6 +206,7 @@ export function TradeFormPage() {
       pnl_dollars: finalPnl,
       result: form.result,
       notes: form.notes || null,
+      screenshot_url: form.screenshot_url || null,
     }
 
     const query = id
@@ -366,9 +413,44 @@ export function TradeFormPage() {
         />
       </Section>
 
+      <Section title="צילום מסך">
+        <Field label="צילום מסך של העסקה" hint="אפשר להדביק תמונה מהקליפבורד (Cmd/Ctrl+V) בכל מקום בעמוד, או לצרף/לצלם דרך הכפתור">
+          <input
+            type="file"
+            accept="image/*"
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (file) uploadScreenshot(file)
+              e.target.value = ''
+            }}
+            className="text-sm text-zinc-400 file:me-3 file:rounded-md file:border-0 file:bg-zinc-800 file:px-3 file:py-2 file:text-zinc-200"
+          />
+        </Field>
+        {uploadingScreenshot && <p className="text-xs text-zinc-500">מעלה תמונה...</p>}
+        {form.screenshot_url && !uploadingScreenshot && (
+          <div className="relative w-fit">
+            <img
+              src={form.screenshot_url}
+              alt="צילום מסך העסקה"
+              className="max-h-56 rounded-lg border border-zinc-800"
+            />
+            <button
+              type="button"
+              onClick={() => update('screenshot_url', '')}
+              className="absolute -right-2 -top-2 rounded-full bg-red-600 p-1 text-white shadow hover:bg-red-500"
+              aria-label="הסרת תמונה"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" />
+              </svg>
+            </button>
+          </div>
+        )}
+      </Section>
+
       <button
         type="submit"
-        disabled={saving}
+        disabled={saving || uploadingScreenshot}
         className="rounded-lg bg-emerald-600 px-4 py-3 font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-50"
       >
         {saving ? 'שומר...' : isEditing ? 'עדכון עסקה' : 'שמירת עסקה'}
