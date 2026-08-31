@@ -13,19 +13,21 @@ export function Layout({ children, navItems }: { children: ReactNode; navItems: 
 
   return (
     <div className="flex min-h-screen flex-col bg-zinc-950 text-zinc-100">
-      <header className="sticky top-0 z-10 border-b border-zinc-800 bg-zinc-950/90 backdrop-blur">
+      <header className="sticky top-0 z-10 border-b border-zinc-800 bg-zinc-950/90 pt-[env(safe-area-inset-top)] backdrop-blur">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-2">
-            <div className="h-8 w-8 shrink-0 overflow-hidden rounded-lg bg-white p-1">
-              <img src="/icons/icon-512.png" alt="" className="h-full w-full object-contain" />
+          <div className="flex flex-col items-start gap-1">
+            <div className="flex items-center gap-2">
+              <div className="h-8 w-8 shrink-0 overflow-hidden rounded-lg bg-white p-1">
+                <img src="/icons/icon-512.png" alt="" className="h-full w-full object-contain" />
+              </div>
+              <h1 className="text-lg font-bold" dir="ltr">ST Indicator</h1>
             </div>
-            <h1 className="text-lg font-bold" dir="ltr">ST Indicator</h1>
             <Link
               to="/"
-              title="החלפת פלטפורמה"
-              className="rounded-md p-1.5 text-zinc-500 transition hover:bg-zinc-800 hover:text-zinc-200"
+              className="flex items-center gap-1 rounded-md py-0.5 text-xs text-zinc-500 transition hover:text-zinc-300"
             >
               <SwitchIcon />
+              <span>החלפת פלטפורמה</span>
             </Link>
           </div>
           <div className="flex items-center gap-3">
