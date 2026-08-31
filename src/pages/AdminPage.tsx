@@ -17,6 +17,17 @@ export function AdminPage() {
     if (error) setActionError(error.message)
   }
 
+  async function toggleBusinessAccess(id: string, businessAccess: boolean) {
+    setUpdatingId(id)
+    setActionError(null)
+    const { error } = await supabase
+      .from('profiles')
+      .update({ business_access: !businessAccess })
+      .eq('id', id)
+    setUpdatingId(null)
+    if (error) setActionError(error.message)
+  }
+
   if (loading) {
     return <p className="py-10 text-center text-zinc-500">טוען משתמשים...</p>
   }
@@ -56,22 +67,40 @@ export function AdminPage() {
                   >
                     {p.approved ? 'מאושר' : 'ממתין לאישור'}
                   </span>
+                  {p.business_access && (
+                    <span className="rounded bg-sky-950 px-1.5 py-0.5 font-semibold text-sky-400">
+                      גישה עסקית
+                    </span>
+                  )}
                   {p.id === user?.id && <span className="text-zinc-600">(אתה)</span>}
                 </div>
               </div>
 
               {p.id !== user?.id && (
-                <button
-                  onClick={() => toggleApproved(p.id, p.approved)}
-                  disabled={updatingId === p.id}
-                  className={`shrink-0 rounded-lg px-3 py-1.5 text-sm font-semibold transition disabled:opacity-50 ${
-                    p.approved
-                      ? 'border border-zinc-700 text-zinc-300 hover:border-red-500 hover:text-red-400'
-                      : 'bg-emerald-600 text-white hover:bg-emerald-500'
-                  }`}
-                >
-                  {p.approved ? 'ביטול גישה' : 'אישור גישה'}
-                </button>
+                <div className="flex shrink-0 items-center gap-2">
+                  <button
+                    onClick={() => toggleBusinessAccess(p.id, p.business_access)}
+                    disabled={updatingId === p.id}
+                    className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition disabled:opacity-50 ${
+                      p.business_access
+                        ? 'border border-zinc-700 text-zinc-300 hover:border-red-500 hover:text-red-400'
+                        : 'bg-sky-600 text-white hover:bg-sky-500'
+                    }`}
+                  >
+                    {p.business_access ? 'ביטול גישה עסקית' : 'הענקת גישה עסקית'}
+                  </button>
+                  <button
+                    onClick={() => toggleApproved(p.id, p.approved)}
+                    disabled={updatingId === p.id}
+                    className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition disabled:opacity-50 ${
+                      p.approved
+                        ? 'border border-zinc-700 text-zinc-300 hover:border-red-500 hover:text-red-400'
+                        : 'bg-emerald-600 text-white hover:bg-emerald-500'
+                    }`}
+                  >
+                    {p.approved ? 'ביטול גישה' : 'אישור גישה'}
+                  </button>
+                </div>
               )}
             </div>
           ))}

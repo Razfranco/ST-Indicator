@@ -1,13 +1,15 @@
 import { lazy, Suspense } from 'react'
 import type { ReactNode } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
-import { AuthProvider } from './context/AuthContext'
+import { AuthProvider, useAuth } from './context/AuthContext'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { AdminRoute } from './components/AdminRoute'
 import { BusinessRoute } from './components/BusinessRoute'
-import { Layout } from './components/Layout'
+import { Layout, ListIcon, PlusIcon, ChartIcon, DocIcon, AdminIcon } from './components/Layout'
+import type { NavItem } from './components/Layout'
 import { BusinessLayout } from './components/BusinessLayout'
 import { LoginPage } from './pages/LoginPage'
+import { PlatformSelectPage } from './pages/PlatformSelectPage'
 import { TradeListPage } from './pages/TradeListPage'
 import { TradeFormPage } from './pages/TradeFormPage'
 
@@ -32,12 +34,38 @@ function PageFallback() {
   return <p className="py-10 text-center text-zinc-500">טוען...</p>
 }
 
+const performanceBaseNavItems: NavItem[] = [
+  { to: '/performance', label: 'עסקאות', icon: ListIcon },
+  { to: '/performance/new', label: 'הזנה', icon: PlusIcon },
+  { to: '/performance/dashboard', label: 'דשבורד', icon: ChartIcon },
+  { to: '/performance/report', label: 'דוח תקופתי', icon: DocIcon },
+]
+
+/** Layout של פלטפורמת הביצועים, עם טאב "ניהול" נוסף למנהלים בלבד */
+function PerformanceLayout({ children }: { children: ReactNode }) {
+  const { profile } = useAuth()
+  const navItems: NavItem[] = [
+    ...performanceBaseNavItems,
+    ...(profile?.role === 'admin' ? [{ to: '/performance/admin', label: 'ניהול', icon: AdminIcon }] : []),
+  ]
+  return <Layout navItems={navItems}>{children}</Layout>
+}
+
+/** מלביש עמוד ביצועים בהגנת גישה (מאושר) ו-Layout של פלטפורמת הביצועים */
+function performancePage(element: ReactNode) {
+  return (
+    <ProtectedRoute>
+      <PerformanceLayout>{element}</PerformanceLayout>
+    </ProtectedRoute>
+  )
+}
+
 /** מלביש עמוד עסקי בהגנות הגישה (מאושר + business_access), Layout הראשי, וטאבי המודול העסקי */
 function businessPage(element: ReactNode) {
   return (
     <ProtectedRoute>
       <BusinessRoute>
-        <Layout>
+        <Layout navItems={[]}>
           <Suspense fallback={<PageFallback />}>
             <BusinessLayout>{element}</BusinessLayout>
           </Suspense>
@@ -57,66 +85,39 @@ function App() {
             path="/"
             element={
               <ProtectedRoute>
-                <Layout>
-                  <TradeListPage />
-                </Layout>
+                <PlatformSelectPage />
               </ProtectedRoute>
             }
           />
+          <Route path="/performance" element={performancePage(<TradeListPage />)} />
+          <Route path="/performance/new" element={performancePage(<TradeFormPage />)} />
+          <Route path="/performance/edit/:id" element={performancePage(<TradeFormPage />)} />
           <Route
-            path="/new"
-            element={
-              <ProtectedRoute>
-                <Layout>
-                  <TradeFormPage />
-                </Layout>
-              </ProtectedRoute>
-            }
+            path="/performance/dashboard"
+            element={performancePage(
+              <Suspense fallback={<PageFallback />}>
+                <DashboardPage />
+              </Suspense>,
+            )}
           />
           <Route
-            path="/edit/:id"
-            element={
-              <ProtectedRoute>
-                <Layout>
-                  <TradeFormPage />
-                </Layout>
-              </ProtectedRoute>
-            }
+            path="/performance/report"
+            element={performancePage(
+              <Suspense fallback={<PageFallback />}>
+                <ReportPage />
+              </Suspense>,
+            )}
           />
           <Route
-            path="/dashboard"
-            element={
-              <ProtectedRoute>
-                <Layout>
-                  <Suspense fallback={<PageFallback />}>
-                    <DashboardPage />
-                  </Suspense>
-                </Layout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/report"
-            element={
-              <ProtectedRoute>
-                <Layout>
-                  <Suspense fallback={<PageFallback />}>
-                    <ReportPage />
-                  </Suspense>
-                </Layout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin"
+            path="/performance/admin"
             element={
               <ProtectedRoute>
                 <AdminRoute>
-                  <Layout>
+                  <PerformanceLayout>
                     <Suspense fallback={<PageFallback />}>
                       <AdminPage />
                     </Suspense>
-                  </Layout>
+                  </PerformanceLayout>
                 </AdminRoute>
               </ProtectedRoute>
             }

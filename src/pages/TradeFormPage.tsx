@@ -174,7 +174,7 @@ export function TradeFormPage() {
       return
     }
 
-    navigate('/')
+    navigate('/performance')
   }
 
   if (loading) {

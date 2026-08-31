@@ -48,7 +48,7 @@ export type Profile = {
 }
 
 export type ProfileInsert = Omit<Profile, 'created_at'> & Partial<Pick<Profile, 'created_at'>>
-export type ProfileUpdate = Partial<Pick<Profile, 'role' | 'approved'>>
+export type ProfileUpdate = Partial<Pick<Profile, 'role' | 'approved' | 'business_access'>>
 
 export type Database = {
   public: {

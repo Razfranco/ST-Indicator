@@ -80,7 +80,7 @@ export function TradeListPage() {
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold">עסקאות ({sorted.length})</h2>
         <Link
-          to="/new"
+          to="/performance/new"
           className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-500"
         >
           + עסקה חדשה
@@ -193,7 +193,7 @@ export function TradeListPage() {
                   </td>
                   <td className="whitespace-nowrap px-3 py-2 text-left">
                     <Link
-                      to={`/edit/${t.id}`}
+                      to={`/performance/edit/${t.id}`}
                       className="ml-2 text-xs text-zinc-400 hover:text-emerald-400"
                     >
                       עריכה
