@@ -51,9 +51,17 @@ const ALERT_WINDOW_DAYS = 7
  * המסומן "חודשי" האחרון. כך חיוב חדש שלא מסומן "חודשי" (למשל תשלום חד-פעמי
  * מראש שמחליף חיוב חוזר) מוציא את הלקוח מההתראה, גם אם היו לו חיובים
  * חודשיים מסומנים בעבר.
+ *
+ * מנוי שכבר פג (ימים לסיום שליליים) לא מקבל שום התראה — הוא כבר "מנוי פג"
+ * (getEffectiveStatus), לא "מסתיים בקרוב", וגם לא רלוונטי לחשב עבורו חיוב הבא.
  */
 export function getCustomerAlerts(customer: Customer, billings: CustomerBilling[]): CustomerAlerts {
-  const expiringSoon = daysUntil(customer.subscription_end_date) <= ALERT_WINDOW_DAYS
+  const daysLeft = daysUntil(customer.subscription_end_date)
+  if (daysLeft < 0) {
+    return { expiringSoon: false, billingDueSoon: false }
+  }
+
+  const expiringSoon = daysLeft <= ALERT_WINDOW_DAYS
 
   const latestBilling = billings
     .filter((b) => b.customer_id === customer.id)
