@@ -4,6 +4,13 @@ export function formatCurrency(value: number | null): string {
   return `${sign}$${value.toLocaleString('en-US', { maximumFractionDigits: 0 })}`
 }
 
+/** לשימוש בפלטפורמת הניהול העסקי בלבד (שקלים) — formatCurrency נשאר לדולרים של מסחר */
+export function formatILS(value: number | null): string {
+  if (value == null) return '—'
+  const sign = value > 0 ? '+' : ''
+  return `${sign}${value.toLocaleString('en-US', { maximumFractionDigits: 0 })} ₪`
+}
+
 export function formatPercent(value: number | null): string {
   if (value == null) return '—'
   return `${value.toLocaleString('en-US', { maximumFractionDigits: 0 })}%`

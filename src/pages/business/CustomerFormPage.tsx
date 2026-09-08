@@ -439,16 +439,16 @@ export function CustomerFormPage() {
                           )}
                         </td>
                         <td className="px-3 py-2 text-zinc-200" dir="ltr">
-                          ${b.amount.toLocaleString('en-US')}
+                          {b.amount.toLocaleString('en-US')} ₪
                         </td>
                         <td className="px-3 py-2 text-zinc-400" dir="ltr">
-                          ${b.plan_cost.toLocaleString('en-US')}
+                          {b.plan_cost.toLocaleString('en-US')} ₪
                         </td>
                         <td
                           className={`px-3 py-2 font-medium ${profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}
                           dir="ltr"
                         >
-                          ${profit.toLocaleString('en-US')}
+                          {profit.toLocaleString('en-US')} ₪
                         </td>
                         <td className="px-3 py-2 text-zinc-400">{b.billing_note ?? '—'}</td>
                         <td className="px-3 py-2 text-left">

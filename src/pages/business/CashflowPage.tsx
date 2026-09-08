@@ -4,7 +4,7 @@ import { useCustomers } from '../../lib/useCustomers'
 import { useCustomerBillings } from '../../lib/useCustomerBillings'
 import { useExpenses } from '../../lib/useExpenses'
 import { computeYearCashflow, monthKeyOf } from '../../lib/businessStats'
-import { formatCurrency } from '../../lib/format'
+import { formatILS } from '../../lib/format'
 import { StatTile } from '../../components/StatTile'
 
 const now = new Date()
@@ -54,20 +54,20 @@ export function CashflowPage() {
       <h2 className="text-xl font-bold">תזרים מזומנים</h2>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatTile label={`הכנסות — ${selected.label} ${year}`} value={formatCurrency(selected.income)} tone="positive" />
+        <StatTile label={`הכנסות — ${selected.label} ${year}`} value={formatILS(selected.income)} tone="positive" />
         <StatTile
           label={`עלויות מסלול — ${selected.label} ${year}`}
-          value={formatCurrency(-selected.planCost)}
+          value={formatILS(-selected.planCost)}
           tone="negative"
         />
         <StatTile
           label={`הוצאות נוספות — ${selected.label} ${year}`}
-          value={formatCurrency(-selected.expenses)}
+          value={formatILS(-selected.expenses)}
           tone="negative"
         />
         <StatTile
           label={`תזרים נטו — ${selected.label} ${year}`}
-          value={formatCurrency(selected.net)}
+          value={formatILS(selected.net)}
           tone={selected.net > 0 ? 'positive' : selected.net < 0 ? 'negative' : 'neutral'}
         />
       </div>
@@ -124,7 +124,7 @@ export function CashflowPage() {
                   }`}
                   dir="ltr"
                 >
-                  {m.hasData ? formatCurrency(m.net) : '—'}
+                  {m.hasData ? formatILS(m.net) : '—'}
                 </span>
               </button>
             )
@@ -171,16 +171,16 @@ export function CashflowPage() {
                         )}
                       </td>
                       <td className="px-3 py-2 text-zinc-200" dir="ltr">
-                        {formatCurrency(b.amount)}
+                        {formatILS(b.amount)}
                       </td>
                       <td className="px-3 py-2 text-zinc-400" dir="ltr">
-                        {formatCurrency(-b.plan_cost)}
+                        {formatILS(-b.plan_cost)}
                       </td>
                       <td
                         className={`px-3 py-2 font-medium ${profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}
                         dir="ltr"
                       >
-                        {formatCurrency(profit)}
+                        {formatILS(profit)}
                       </td>
                       <td className="px-3 py-2 text-zinc-400">{b.billing_note ?? '—'}</td>
                     </tr>
@@ -191,13 +191,13 @@ export function CashflowPage() {
                 <tr className="border-t border-zinc-800 bg-zinc-900/60 font-medium">
                   <td className="px-3 py-2 text-zinc-300">סה״כ</td>
                   <td className="px-3 py-2 text-emerald-400" dir="ltr">
-                    {formatCurrency(selected.income)}
+                    {formatILS(selected.income)}
                   </td>
                   <td className="px-3 py-2 text-zinc-400" dir="ltr">
-                    {formatCurrency(-selected.planCost)}
+                    {formatILS(-selected.planCost)}
                   </td>
                   <td className="px-3 py-2 text-zinc-300" dir="ltr">
-                    {formatCurrency(selected.income - selected.planCost)}
+                    {formatILS(selected.income - selected.planCost)}
                   </td>
                   <td className="px-3 py-2"></td>
                 </tr>
@@ -224,7 +224,7 @@ export function CashflowPage() {
                   <tr key={e.id} className="hover:bg-zinc-900/60">
                     <td className="px-3 py-2 font-medium text-zinc-200">{e.expense_name}</td>
                     <td className="px-3 py-2 text-red-400" dir="ltr">
-                      {formatCurrency(-e.amount)}
+                      {formatILS(-e.amount)}
                     </td>
                     <td className="px-3 py-2 text-zinc-400">{e.note}</td>
                   </tr>

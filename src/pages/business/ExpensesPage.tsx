@@ -173,7 +173,7 @@ export function ExpensesPage() {
         <div className="text-left">
           <div className="text-xs text-zinc-500">סה״כ הוצאות לחודש</div>
           <div className="text-xl font-semibold text-red-400" dir="ltr">
-            ${total.toLocaleString('en-US')}
+            {total.toLocaleString('en-US')} ₪
           </div>
         </div>
       </div>
@@ -198,7 +198,7 @@ export function ExpensesPage() {
                 <tr key={e.id} className="hover:bg-zinc-900/60">
                   <td className="px-3 py-2 font-medium text-zinc-200">{e.expense_name}</td>
                   <td className="px-3 py-2 text-red-400" dir="ltr">
-                    ${e.amount.toLocaleString('en-US')}
+                    {e.amount.toLocaleString('en-US')} ₪
                   </td>
                   <td className="px-3 py-2 text-zinc-400">{e.note}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-left">
