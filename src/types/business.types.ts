@@ -69,3 +69,18 @@ export type AdditionalExpense = {
 export type AdditionalExpenseInsert = Omit<AdditionalExpense, 'id' | 'created_at'> &
   Partial<Pick<AdditionalExpense, 'id' | 'created_at'>>
 export type AdditionalExpenseUpdate = Partial<AdditionalExpenseInsert>
+
+export type TreasuryTransactionType = 'deposit' | 'withdrawal'
+
+export type TreasuryTransaction = {
+  id: string
+  created_at: string
+  transaction_date: string
+  type: TreasuryTransactionType
+  amount: number
+  note: string | null
+}
+
+export type TreasuryTransactionInsert = Omit<TreasuryTransaction, 'id' | 'created_at'> &
+  Partial<Pick<TreasuryTransaction, 'id' | 'created_at'>>
+export type TreasuryTransactionUpdate = Partial<TreasuryTransactionInsert>

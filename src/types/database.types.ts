@@ -11,6 +11,9 @@ import type {
   Lead,
   LeadInsert,
   LeadUpdate,
+  TreasuryTransaction,
+  TreasuryTransactionInsert,
+  TreasuryTransactionUpdate,
 } from './business.types'
 
 export type Direction = 'Long' | 'Short'
@@ -88,6 +91,12 @@ export type Database = {
         Row: AdditionalExpense
         Insert: AdditionalExpenseInsert
         Update: AdditionalExpenseUpdate
+        Relationships: []
+      }
+      treasury_transactions: {
+        Row: TreasuryTransaction
+        Insert: TreasuryTransactionInsert
+        Update: TreasuryTransactionUpdate
         Relationships: []
       }
     }

@@ -29,6 +29,9 @@ const ExpensesPage = lazy(() =>
 const CashflowPage = lazy(() =>
   import('./pages/business/CashflowPage').then((m) => ({ default: m.CashflowPage })),
 )
+const TreasuryPage = lazy(() =>
+  import('./pages/business/TreasuryPage').then((m) => ({ default: m.TreasuryPage })),
+)
 
 function PageFallback() {
   return <p className="py-10 text-center text-zinc-500">טוען...</p>
@@ -129,6 +132,7 @@ function App() {
           <Route path="/business/leads" element={businessPage(<LeadsPage />)} />
           <Route path="/business/expenses" element={businessPage(<ExpensesPage />)} />
           <Route path="/business/cashflow" element={businessPage(<CashflowPage />)} />
+          <Route path="/business/treasury" element={businessPage(<TreasuryPage />)} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
