@@ -8,6 +8,9 @@ import type {
   CustomerBillingUpdate,
   CustomerInsert,
   CustomerUpdate,
+  FixedExpense,
+  FixedExpenseInsert,
+  FixedExpenseUpdate,
   Lead,
   LeadInsert,
   LeadUpdate,
@@ -97,6 +100,12 @@ export type Database = {
         Row: TreasuryTransaction
         Insert: TreasuryTransactionInsert
         Update: TreasuryTransactionUpdate
+        Relationships: []
+      }
+      fixed_expenses: {
+        Row: FixedExpense
+        Insert: FixedExpenseInsert
+        Update: FixedExpenseUpdate
         Relationships: []
       }
     }

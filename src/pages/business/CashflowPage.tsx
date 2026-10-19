@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom'
 import { useCustomers } from '../../lib/useCustomers'
 import { useCustomerBillings } from '../../lib/useCustomerBillings'
 import { useExpenses } from '../../lib/useExpenses'
-import { computeYearCashflow, monthKeyOf } from '../../lib/businessStats'
+import { useFixedExpenses } from '../../lib/useFixedExpenses'
+import { computeYearCashflow, countFixedExpenseOccurrences, monthKeyOf } from '../../lib/businessStats'
 import { formatILS } from '../../lib/format'
 import { StatTile } from '../../components/StatTile'
 
@@ -13,12 +14,13 @@ export function CashflowPage() {
   const { customers } = useCustomers()
   const { billings, loading: loadingBillings, error: billingsError } = useCustomerBillings()
   const { expenses, loading: loadingExpenses, error: expensesError } = useExpenses()
+  const { fixedExpenses, loading: loadingFixed, error: fixedError } = useFixedExpenses()
 
   const [year, setYear] = useState(now.getFullYear())
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth())
 
-  const loading = loadingBillings || loadingExpenses
-  const error = billingsError ?? expensesError
+  const loading = loadingBillings || loadingExpenses || loadingFixed
+  const error = billingsError ?? expensesError ?? fixedError
 
   const customerNameById = useMemo(() => {
     const map = new Map<string, string>()
@@ -26,10 +28,18 @@ export function CashflowPage() {
     return map
   }, [customers])
 
-  const months = useMemo(() => computeYearCashflow(billings, expenses, year), [billings, expenses, year])
+  const months = useMemo(
+    () => computeYearCashflow(billings, expenses, fixedExpenses, year),
+    [billings, expenses, fixedExpenses, year],
+  )
   const selected = months[selectedMonth]
 
   const selectedMonthKey = `${year}-${String(selectedMonth + 1).padStart(2, '0')}`
+  const selectedMonthStart = useMemo(() => new Date(year, selectedMonth, 1), [year, selectedMonth])
+  const selectedMonthEnd = useMemo(
+    () => new Date(year, selectedMonth + 1, 0, 23, 59, 59, 999),
+    [year, selectedMonth],
+  )
   const selectedBillings = useMemo(
     () => billings.filter((b) => monthKeyOf(b.billing_month) === selectedMonthKey),
     [billings, selectedMonthKey],
@@ -37,6 +47,16 @@ export function CashflowPage() {
   const selectedExpenses = useMemo(
     () => expenses.filter((e) => monthKeyOf(e.expense_month) === selectedMonthKey),
     [expenses, selectedMonthKey],
+  )
+  const selectedFixedExpenses = useMemo(
+    () =>
+      fixedExpenses
+        .map((fe) => ({
+          expense: fe,
+          occurrences: countFixedExpenseOccurrences(fe.start_date, fe.recurrence, selectedMonthStart, selectedMonthEnd),
+        }))
+        .filter((row) => row.occurrences > 0),
+    [fixedExpenses, selectedMonthStart, selectedMonthEnd],
   )
 
   const maxAbsNet = useMemo(() => Math.max(1, ...months.map((m) => Math.abs(m.net))), [months])
@@ -61,7 +81,7 @@ export function CashflowPage() {
           tone="negative"
         />
         <StatTile
-          label={`הוצאות נוספות — ${selected.label} ${year}`}
+          label={`הוצאות (קבועות + משתנות) — ${selected.label} ${year}`}
           value={formatILS(-selected.expenses)}
           tone="negative"
         />
@@ -206,9 +226,39 @@ export function CashflowPage() {
           </div>
         )}
 
-        <h4 className="mb-2 text-xs font-semibold text-zinc-500">הוצאות נוספות</h4>
+        <h4 className="mb-2 text-xs font-semibold text-zinc-500">הוצאות קבועות</h4>
+        {selectedFixedExpenses.length === 0 ? (
+          <p className="py-3 text-center text-sm text-zinc-500">אין הוצאות קבועות בחודש זה.</p>
+        ) : (
+          <div className="mb-4 overflow-x-auto rounded-lg border border-zinc-800">
+            <table className="w-full min-w-[420px] text-sm">
+              <thead className="bg-zinc-900 text-zinc-400">
+                <tr>
+                  <th className="px-3 py-2 text-right font-medium">הוצאה</th>
+                  <th className="px-3 py-2 text-right font-medium">מופעים</th>
+                  <th className="px-3 py-2 text-right font-medium">סה״כ</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-800">
+                {selectedFixedExpenses.map(({ expense, occurrences }) => (
+                  <tr key={expense.id} className="hover:bg-zinc-900/60">
+                    <td className="px-3 py-2 font-medium text-zinc-200">{expense.expense_name}</td>
+                    <td className="px-3 py-2 text-zinc-300" dir="ltr">
+                      {occurrences}
+                    </td>
+                    <td className="px-3 py-2 text-red-400" dir="ltr">
+                      {formatILS(-occurrences * expense.amount)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <h4 className="mb-2 text-xs font-semibold text-zinc-500">הוצאות משתנות</h4>
         {selectedExpenses.length === 0 ? (
-          <p className="py-3 text-center text-sm text-zinc-500">אין הוצאות בחודש זה.</p>
+          <p className="py-3 text-center text-sm text-zinc-500">אין הוצאות משתנות בחודש זה.</p>
         ) : (
           <div className="overflow-x-auto rounded-lg border border-zinc-800">
             <table className="w-full min-w-[420px] text-sm">

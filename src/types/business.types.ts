@@ -84,3 +84,19 @@ export type TreasuryTransaction = {
 export type TreasuryTransactionInsert = Omit<TreasuryTransaction, 'id' | 'created_at'> &
   Partial<Pick<TreasuryTransaction, 'id' | 'created_at'>>
 export type TreasuryTransactionUpdate = Partial<TreasuryTransactionInsert>
+
+export type FixedExpenseRecurrence = 'weekly' | 'monthly' | 'yearly'
+
+export type FixedExpense = {
+  id: string
+  created_at: string
+  expense_name: string
+  amount: number
+  recurrence: FixedExpenseRecurrence
+  start_date: string
+  note: string | null
+}
+
+export type FixedExpenseInsert = Omit<FixedExpense, 'id' | 'created_at'> &
+  Partial<Pick<FixedExpense, 'id' | 'created_at'>>
+export type FixedExpenseUpdate = Partial<FixedExpenseInsert>

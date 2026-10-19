@@ -3,6 +3,7 @@ import type {
   Customer,
   CustomerBilling,
   CustomerEffectiveStatus,
+  FixedExpense,
 } from '../types/business.types'
 
 const monthLabels = ['ינו', 'פבר', 'מרץ', 'אפר', 'מאי', 'יונ', 'יול', 'אוג', 'ספט', 'אוק', 'נוב', 'דצמ']
@@ -75,6 +76,52 @@ export function getCustomerAlerts(customer: Customer, billings: CustomerBilling[
   return { expiringSoon, billingDueSoon }
 }
 
+/**
+ * כמה פעמים הוצאה קבועה (חוזרת) חלה בטווח תאריכים נתון [rangeStart, rangeEnd]
+ * (כולל שני הקצוות), החל מ-start_date שלה. שימושי לכל טווח — חודש בודד או שנה שלמה.
+ */
+export function countFixedExpenseOccurrences(
+  startDateStr: string,
+  recurrence: FixedExpense['recurrence'],
+  rangeStart: Date,
+  rangeEnd: Date,
+): number {
+  const startDate = new Date(startDateStr)
+  if (rangeEnd < startDate) return 0
+
+  if (recurrence === 'weekly') {
+    const from = startDate > rangeStart ? startDate : rangeStart
+    const daysSinceStart = Math.round((from.getTime() - startDate.getTime()) / 86400000)
+    const offset = daysSinceStart % 7
+    const firstOccurrence = new Date(from.getTime() + (offset === 0 ? 0 : 7 - offset) * 86400000)
+    if (firstOccurrence > rangeEnd) return 0
+    const daysSpan = Math.round((rangeEnd.getTime() - firstOccurrence.getTime()) / 86400000)
+    return Math.floor(daysSpan / 7) + 1
+  }
+
+  const cursor = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate())
+  const step = recurrence === 'monthly' ? () => cursor.setMonth(cursor.getMonth() + 1) : () => cursor.setFullYear(cursor.getFullYear() + 1)
+  while (cursor < rangeStart) step()
+  let count = 0
+  while (cursor <= rangeEnd) {
+    count++
+    step()
+  }
+  return count
+}
+
+/** סך תרומת כל ההוצאות הקבועות לטווח תאריכים נתון (מספר המופעים × הסכום, לכל הוצאה) */
+export function sumFixedExpensesInRange(
+  fixedExpenses: FixedExpense[],
+  rangeStart: Date,
+  rangeEnd: Date,
+): number {
+  return fixedExpenses.reduce(
+    (sum, e) => sum + countFixedExpenseOccurrences(e.start_date, e.recurrence, rangeStart, rangeEnd) * e.amount,
+    0,
+  )
+}
+
 export interface YearMonthPoint {
   key: string
   monthIndex: number
@@ -90,6 +137,7 @@ export interface YearMonthPoint {
 export function computeYearCashflow(
   billings: CustomerBilling[],
   expenses: AdditionalExpense[],
+  fixedExpenses: FixedExpense[],
   year: number,
 ): YearMonthPoint[] {
   const months: YearMonthPoint[] = Array.from({ length: 12 }, (_, i) => ({
@@ -118,6 +166,16 @@ export function computeYearCashflow(
     const m = months[d.getMonth()]
     m.expenses += e.amount
     m.hasData = true
+  }
+
+  for (const m of months) {
+    const monthStart = new Date(year, m.monthIndex, 1)
+    const monthEnd = new Date(year, m.monthIndex + 1, 0, 23, 59, 59, 999)
+    const fixedTotal = sumFixedExpensesInRange(fixedExpenses, monthStart, monthEnd)
+    if (fixedTotal > 0) {
+      m.expenses += fixedTotal
+      m.hasData = true
+    }
   }
 
   for (const m of months) {
