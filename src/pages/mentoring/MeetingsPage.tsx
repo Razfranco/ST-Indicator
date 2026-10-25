@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { Calendar as CalendarIcon, List as ListIcon, Plus } from 'lucide-react'
 import { supabase } from '../../lib/supabaseClient'
 import { useAuth } from '../../context/AuthContext'
 import { useMentorshipMeetings } from '../../lib/useMentorshipMeetings'
@@ -8,6 +9,23 @@ import { useStudents } from '../../lib/useStudents'
 import { useProfiles } from '../../lib/useProfiles'
 import { FilterField, filterInputClass, SortHeader, CardField } from '../../components/BusinessFormControls'
 import type { SortDir } from '../../components/BusinessFormControls'
+import { Card } from '../../components/ui/card'
+import { Button } from '../../components/ui/button'
+import { Badge } from '../../components/ui/badge'
+import { Alert, AlertDescription } from '../../components/ui/alert'
+import { Skeleton } from '../../components/ui/skeleton'
+import { Tabs, TabsList, TabsTrigger } from '../../components/ui/tabs'
+import { Table, TableBody, TableCell, TableHeader, TableRow } from '../../components/ui/table'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../../components/ui/alert-dialog'
 import type { MeetingChannel, MeetingStatus } from '../../types/mentorship.types'
 
 const CHANNELS: MeetingChannel[] = ['whatsapp', 'google_meet', 'other']
@@ -25,10 +43,10 @@ const statusLabel: Record<MeetingStatus, string> = {
   no_show: 'לא הגיע',
 }
 const statusClass: Record<MeetingStatus, string> = {
-  scheduled: 'bg-sky-950 text-sky-400',
-  completed: 'bg-emerald-950 text-emerald-400',
-  cancelled: 'bg-red-950 text-red-400',
-  no_show: 'bg-amber-950 text-amber-400',
+  scheduled: 'bg-sky-100 text-sky-800',
+  completed: 'bg-primary/10 text-primary',
+  cancelled: 'bg-destructive/10 text-destructive',
+  no_show: 'bg-amber-100 text-amber-800',
 }
 
 const MONTH_LABELS = [
@@ -73,6 +91,7 @@ export function MeetingsPage() {
 
   const [view, setView] = useState<View>('calendar')
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
 
   const [statusFilter, setStatusFilter] = useState<MeetingStatus | ''>('')
@@ -167,11 +186,13 @@ export function MeetingsPage() {
     }
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm('למחוק את הפגישה? פעולה זו אינה הפיכה.')) return
+  async function confirmDelete() {
+    if (!confirmDeleteId) return
+    const id = confirmDeleteId
     setDeletingId(id)
     const { error } = await supabase.from('mentorship_meetings').delete().eq('id', id)
     setDeletingId(null)
+    setConfirmDeleteId(null)
     if (error) setActionError(error.message)
   }
 
@@ -182,39 +203,30 @@ export function MeetingsPage() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold">פגישות ({sorted.length})</h2>
-        <Link
-          to="/mentoring/meetings/new"
-          className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-500"
-        >
-          + פגישה חדשה
-        </Link>
+        <h2 className="font-heading text-xl font-semibold">פגישות ({sorted.length})</h2>
+        <Button render={<Link to="/mentoring/meetings/new" />}>
+          <Plus className="h-4 w-4" /> פגישה חדשה
+        </Button>
       </div>
 
-      {error && <p className="rounded-lg bg-red-950/50 px-3 py-2 text-sm text-red-400">{error}</p>}
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription className="text-destructive">{error}</AlertDescription>
+        </Alert>
+      )}
 
-      <div className="flex gap-1 rounded-lg border border-zinc-800 bg-zinc-900/40 p-1 text-sm">
-        <button
-          type="button"
-          onClick={() => setView('calendar')}
-          className={`flex-1 rounded-md py-1.5 font-semibold transition ${
-            view === 'calendar' ? 'bg-emerald-600 text-white' : 'text-zinc-400'
-          }`}
-        >
-          לוח שנה
-        </button>
-        <button
-          type="button"
-          onClick={() => setView('list')}
-          className={`flex-1 rounded-md py-1.5 font-semibold transition ${
-            view === 'list' ? 'bg-emerald-600 text-white' : 'text-zinc-400'
-          }`}
-        >
-          רשימה
-        </button>
-      </div>
+      <Tabs value={view} onValueChange={(v) => setView(v as View)}>
+        <TabsList className="w-full">
+          <TabsTrigger value="calendar" className="flex-1 gap-1.5">
+            <CalendarIcon className="h-4 w-4" /> לוח שנה
+          </TabsTrigger>
+          <TabsTrigger value="list" className="flex-1 gap-1.5">
+            <ListIcon className="h-4 w-4" /> רשימה
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
 
-      <div className="grid grid-cols-2 gap-3 rounded-xl border border-zinc-800 bg-zinc-900/40 p-3 sm:grid-cols-5">
+      <Card className="grid grid-cols-2 gap-3 p-3 shadow-sm sm:grid-cols-5">
         <FilterField label="תלמיד">
           <select value={studentFilter} onChange={(e) => setStudentFilter(e.target.value)} className={filterInputClass}>
             <option value="">הכל</option>
@@ -268,36 +280,30 @@ export function MeetingsPage() {
             </FilterField>
           </>
         )}
-      </div>
+      </Card>
 
       {loading ? (
-        <p className="py-10 text-center text-zinc-500">טוען פגישות...</p>
+        <div className="flex flex-col gap-2">
+          <Skeleton className="h-64 w-full rounded-xl" />
+        </div>
       ) : view === 'calendar' ? (
-        <section className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-3 sm:p-4">
+        <Card className="p-3 shadow-sm sm:p-4">
           <div className="mb-3 flex items-center justify-between">
             <div className="flex items-center gap-2 text-sm">
-              <button
-                type="button"
-                onClick={() => goMonth(-1)}
-                className="rounded-md border border-zinc-700 px-2 py-1 text-zinc-300 hover:border-zinc-500"
-              >
+              <Button variant="outline" size="sm" onClick={() => goMonth(-1)}>
                 ‹ קודם
-              </button>
-              <span className="min-w-[100px] text-center font-medium text-zinc-200">{calendar.monthLabel}</span>
-              <button
-                type="button"
-                onClick={() => goMonth(1)}
-                className="rounded-md border border-zinc-700 px-2 py-1 text-zinc-300 hover:border-zinc-500"
-              >
+              </Button>
+              <span className="min-w-[100px] text-center font-medium text-foreground">{calendar.monthLabel}</span>
+              <Button variant="outline" size="sm" onClick={() => goMonth(1)}>
                 הבא ›
-              </button>
+              </Button>
             </div>
-            <div className="flex items-center gap-1 text-xs text-zinc-500">
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
               <span className="h-1.5 w-1.5 rounded-full bg-red-500" /> פגישה שהתקיימה בלי תמליל מצורף
             </div>
           </div>
 
-          <div className="grid grid-cols-7 gap-1 text-center text-xs text-zinc-500">
+          <div className="grid grid-cols-7 gap-1 text-center text-xs text-muted-foreground">
             {WEEKDAY_LABELS.map((w) => (
               <div key={w} className="py-1">
                 {w}
@@ -309,13 +315,13 @@ export function MeetingsPage() {
             {calendar.days.map((cell) => (
               <div
                 key={cell.key}
-                className="flex min-h-[76px] flex-col gap-1 rounded-md border border-zinc-800/60 p-1 text-right sm:min-h-[100px]"
+                className="flex min-h-[76px] flex-col gap-1 rounded-md border border-border p-1 text-right sm:min-h-[100px]"
               >
                 <div className="flex items-center justify-between px-0.5">
-                  <span className="text-[11px] text-zinc-500">{cell.day}</span>
+                  <span className="text-[11px] text-muted-foreground">{cell.day}</span>
                   <Link
                     to={`/mentoring/meetings/new?date=${cell.key}`}
-                    className="text-xs leading-none text-zinc-600 hover:text-emerald-400"
+                    className="text-xs leading-none text-muted-foreground hover:text-primary"
                     title="פגישה חדשה"
                   >
                     +
@@ -337,28 +343,28 @@ export function MeetingsPage() {
                     </Link>
                   ))}
                   {cell.meetings.length > 3 && (
-                    <span className="px-1 text-[10px] text-zinc-500">+{cell.meetings.length - 3} עוד</span>
+                    <span className="px-1 text-[10px] text-muted-foreground">+{cell.meetings.length - 3} עוד</span>
                   )}
                 </div>
               </div>
             ))}
           </div>
-        </section>
+        </Card>
       ) : sorted.length === 0 ? (
-        <p className="py-10 text-center text-zinc-500">אין פגישות להצגה.</p>
+        <p className="py-10 text-center text-muted-foreground">אין פגישות להצגה.</p>
       ) : (
         <>
           <div className="flex flex-col gap-3 sm:hidden">
             {sorted.map((m) => (
-              <div key={m.id} className="flex flex-col gap-2 rounded-xl border border-zinc-800 bg-zinc-900/40 p-3">
+              <Card key={m.id} className="gap-2 p-3 shadow-sm">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="flex items-center gap-1.5 font-medium text-zinc-200">
+                  <span className="flex items-center gap-1.5 font-medium text-foreground">
                     {missingTranscript(m) && <span className="h-2 w-2 shrink-0 rounded-full bg-red-500" />}
                     {studentById.get(m.student_id)?.display_name ?? 'תלמיד לא ידוע'}
                   </span>
-                  <span className={`rounded px-1.5 py-0.5 text-xs font-semibold ${statusClass[m.status]}`}>
+                  <Badge variant="outline" className={`border-transparent ${statusClass[m.status]}`}>
                     {statusLabel[m.status]}
-                  </span>
+                  </Badge>
                 </div>
                 <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
                   <CardField label="תאריך ושעה">
@@ -368,81 +374,108 @@ export function MeetingsPage() {
                   {isAdmin && <CardField label="מנטור">{mentorById.get(m.mentor_user_id)?.email ?? '—'}</CardField>}
                   <CardField label="משך">{m.duration_minutes} דק'</CardField>
                 </div>
-                <div className="flex gap-3 border-t border-zinc-800 pt-2">
-                  <Link to={`/mentoring/meetings/${m.id}/edit`} className="text-xs text-zinc-400 hover:text-emerald-400">
+                <div className="flex gap-3 border-t border-border pt-2">
+                  <Button variant="link" size="sm" className="h-auto p-0" render={<Link to={`/mentoring/meetings/${m.id}/edit`} />}>
                     עריכה
-                  </Link>
-                  <button
-                    onClick={() => handleDelete(m.id)}
+                  </Button>
+                  <Button
+                    variant="link"
+                    size="sm"
+                    className="h-auto p-0 text-destructive"
+                    onClick={() => setConfirmDeleteId(m.id)}
                     disabled={deletingId === m.id}
-                    className="text-xs text-zinc-400 hover:text-red-400 disabled:opacity-50"
                   >
                     מחיקה
-                  </button>
+                  </Button>
                 </div>
-              </div>
+              </Card>
             ))}
           </div>
 
-          <div className="hidden overflow-x-auto rounded-xl border border-zinc-800 sm:block">
-            <table className="w-full min-w-[720px] text-sm">
-              <thead className="bg-zinc-900 text-zinc-400">
-                <tr>
-                  <SortHeader label="תאריך ושעה" field="starts_at" current={sortField} dir={sortDir} onClick={toggleSort} />
-                  <th className="px-3 py-2 text-right font-medium">תלמיד</th>
-                  {isAdmin && <th className="px-3 py-2 text-right font-medium">מנטור</th>}
-                  <th className="px-3 py-2 text-right font-medium">ערוץ</th>
-                  <SortHeader label="סטטוס" field="status" current={sortField} dir={sortDir} onClick={toggleSort} />
-                  <th className="px-3 py-2 text-right font-medium">נושא</th>
-                  <th className="px-3 py-2"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-800">
-                {sorted.map((m) => (
-                  <tr key={m.id} className="hover:bg-zinc-900/60">
-                    <td className="px-3 py-2 text-zinc-300" dir="ltr">
-                      {formatStartsAt(m.starts_at)}
-                    </td>
-                    <td className="px-3 py-2 font-medium text-zinc-200">
-                      <span className="flex items-center gap-1.5">
-                        {missingTranscript(m) && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-red-500" />}
-                        {studentById.get(m.student_id)?.display_name ?? 'תלמיד לא ידוע'}
-                      </span>
-                    </td>
+          <div className="hidden sm:block">
+            <Card className="overflow-hidden p-0 shadow-sm">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <SortHeader label="תאריך ושעה" field="starts_at" current={sortField} dir={sortDir} onClick={toggleSort} />
+                    <th className="h-10 px-2 text-start align-middle font-medium text-muted-foreground">תלמיד</th>
                     {isAdmin && (
-                      <td className="px-3 py-2 text-zinc-300" dir="ltr">
-                        {mentorById.get(m.mentor_user_id)?.email ?? '—'}
-                      </td>
+                      <th className="h-10 px-2 text-start align-middle font-medium text-muted-foreground">מנטור</th>
                     )}
-                    <td className="px-3 py-2 text-zinc-300">{channelLabel[m.channel]}</td>
-                    <td className="px-3 py-2">
-                      <span className={`rounded px-1.5 py-0.5 text-xs font-semibold ${statusClass[m.status]}`}>
-                        {statusLabel[m.status]}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2 text-zinc-400">{m.topic ?? '—'}</td>
-                    <td className="whitespace-nowrap px-3 py-2 text-left">
-                      <Link
-                        to={`/mentoring/meetings/${m.id}/edit`}
-                        className="ml-2 text-xs text-zinc-400 hover:text-emerald-400"
-                      >
-                        עריכה
-                      </Link>
-                      <button
-                        onClick={() => handleDelete(m.id)}
-                        disabled={deletingId === m.id}
-                        className="text-xs text-zinc-400 hover:text-red-400 disabled:opacity-50"
-                      >
-                        מחיקה
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    <th className="h-10 px-2 text-start align-middle font-medium text-muted-foreground">ערוץ</th>
+                    <SortHeader label="סטטוס" field="status" current={sortField} dir={sortDir} onClick={toggleSort} />
+                    <th className="h-10 px-2 text-start align-middle font-medium text-muted-foreground">נושא</th>
+                    <th className="h-10 px-2"></th>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {sorted.map((m) => (
+                    <TableRow key={m.id}>
+                      <TableCell className="text-foreground" dir="ltr">
+                        {formatStartsAt(m.starts_at)}
+                      </TableCell>
+                      <TableCell className="font-medium text-foreground">
+                        <span className="flex items-center gap-1.5">
+                          {missingTranscript(m) && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-red-500" />}
+                          {studentById.get(m.student_id)?.display_name ?? 'תלמיד לא ידוע'}
+                        </span>
+                      </TableCell>
+                      {isAdmin && (
+                        <TableCell className="text-foreground" dir="ltr">
+                          {mentorById.get(m.mentor_user_id)?.email ?? '—'}
+                        </TableCell>
+                      )}
+                      <TableCell className="text-foreground">{channelLabel[m.channel]}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={`border-transparent ${statusClass[m.status]}`}>
+                          {statusLabel[m.status]}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">{m.topic ?? '—'}</TableCell>
+                      <TableCell className="text-left">
+                        <div className="flex items-center justify-end gap-3">
+                          <Button
+                            variant="link"
+                            size="sm"
+                            className="h-auto p-0"
+                            render={<Link to={`/mentoring/meetings/${m.id}/edit`} />}
+                          >
+                            עריכה
+                          </Button>
+                          <Button
+                            variant="link"
+                            size="sm"
+                            className="h-auto p-0 text-destructive"
+                            onClick={() => setConfirmDeleteId(m.id)}
+                            disabled={deletingId === m.id}
+                          >
+                            מחיקה
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Card>
           </div>
         </>
       )}
+
+      <AlertDialog open={confirmDeleteId != null} onOpenChange={(next: boolean) => !next && setConfirmDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>מחיקת פגישה</AlertDialogTitle>
+            <AlertDialogDescription>פעולה זו אינה הפיכה. למחוק את הפגישה?</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>ביטול</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={confirmDelete}>
+              מחיקה
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

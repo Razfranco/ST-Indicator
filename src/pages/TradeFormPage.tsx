@@ -1,11 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { FormEvent, ReactNode } from 'react'
+import type { FormEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { X } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../context/AuthContext'
 import { calculatePnlFromPoints } from '../lib/calculations'
 import { DIRECTIONS, RESULTS } from '../lib/constants'
 import type { Direction, TradeResult } from '../types/database.types'
+import { Section, Field, inputClass } from '../components/BusinessFormControls'
+import { Button } from '../components/ui/button'
+import { Alert, AlertDescription } from '../components/ui/alert'
 
 type PnlMode = 'auto' | 'manual'
 
@@ -225,14 +229,18 @@ export function TradeFormPage() {
   }
 
   if (loading) {
-    return <p className="py-10 text-center text-zinc-500">טוען עסקה...</p>
+    return <p className="py-10 text-center text-muted-foreground">טוען עסקה...</p>
   }
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-5 pb-6">
-      <h2 className="text-xl font-bold">{isEditing ? 'עריכת עסקה' : 'עסקה חדשה'}</h2>
+      <h2 className="font-heading text-xl font-semibold">{isEditing ? 'עריכת עסקה' : 'עסקה חדשה'}</h2>
 
-      {error && <p className="rounded-lg bg-red-950/50 px-3 py-2 text-sm text-red-400">{error}</p>}
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription className="text-destructive">{error}</AlertDescription>
+        </Alert>
+      )}
 
       <Section title="תזמון">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -268,7 +276,7 @@ export function TradeFormPage() {
       <Section title="פרטי עסקה">
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           <Field label="כיוון" required>
-            <div className="flex gap-1 rounded-lg border border-zinc-700 bg-zinc-800 p-1">
+            <div className="flex gap-1 rounded-lg border border-border bg-muted p-1">
               {DIRECTIONS.map((d) => (
                 <button
                   key={d}
@@ -277,9 +285,9 @@ export function TradeFormPage() {
                   className={`flex-1 rounded-md py-2 text-sm font-semibold transition ${
                     form.direction === d
                       ? d === 'Long'
-                        ? 'bg-emerald-600 text-white'
-                        : 'bg-red-600 text-white'
-                      : 'text-zinc-400'
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-destructive text-white'
+                      : 'text-muted-foreground'
                   }`}
                 >
                   {d === 'Long' ? 'לונג' : 'שורט'}
@@ -325,12 +333,12 @@ export function TradeFormPage() {
       </Section>
 
       <Section title="רווח / הפסד">
-        <div className="flex gap-1 rounded-lg border border-zinc-700 bg-zinc-800 p-1">
+        <div className="flex gap-1 rounded-lg border border-border bg-muted p-1">
           <button
             type="button"
             onClick={() => update('pnlMode', 'auto')}
             className={`flex-1 rounded-md py-2 text-sm font-semibold transition ${
-              form.pnlMode === 'auto' ? 'bg-emerald-600 text-white' : 'text-zinc-400'
+              form.pnlMode === 'auto' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'
             }`}
           >
             חישוב אוטומטי
@@ -339,7 +347,7 @@ export function TradeFormPage() {
             type="button"
             onClick={() => update('pnlMode', 'manual')}
             className={`flex-1 rounded-md py-2 text-sm font-semibold transition ${
-              form.pnlMode === 'manual' ? 'bg-emerald-600 text-white' : 'text-zinc-400'
+              form.pnlMode === 'manual' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'
             }`}
           >
             הזנה ידנית
@@ -360,7 +368,7 @@ export function TradeFormPage() {
               />
             </Field>
             <Field label="רווח/הפסד מחושב ($)">
-              <div className={`${inputClass} bg-zinc-900 text-zinc-400`} dir="ltr">
+              <div className={`${inputClass} bg-muted text-muted-foreground`} dir="ltr">
                 {computedPnl != null ? computedPnl.toLocaleString('en-US') : '—'}
               </div>
             </Field>
@@ -390,11 +398,11 @@ export function TradeFormPage() {
               className={`rounded-lg py-2.5 text-sm font-semibold transition ${
                 form.result === r
                   ? r === 'SL'
-                    ? 'bg-red-600 text-white'
+                    ? 'bg-destructive text-white'
                     : r === 'BE'
-                      ? 'bg-zinc-600 text-white'
-                      : 'bg-emerald-600 text-white'
-                  : 'border border-zinc-700 text-zinc-400'
+                      ? 'bg-muted-foreground text-white'
+                      : 'bg-primary text-primary-foreground'
+                  : 'border border-border text-muted-foreground'
               }`}
             >
               {r}
@@ -423,73 +431,32 @@ export function TradeFormPage() {
               if (file) uploadScreenshot(file)
               e.target.value = ''
             }}
-            className="text-sm text-zinc-400 file:me-3 file:rounded-md file:border-0 file:bg-zinc-800 file:px-3 file:py-2 file:text-zinc-200"
+            className="text-sm text-muted-foreground file:me-3 file:rounded-md file:border-0 file:bg-muted file:px-3 file:py-2 file:text-foreground"
           />
         </Field>
-        {uploadingScreenshot && <p className="text-xs text-zinc-500">מעלה תמונה...</p>}
+        {uploadingScreenshot && <p className="text-xs text-muted-foreground">מעלה תמונה...</p>}
         {form.screenshot_url && !uploadingScreenshot && (
           <div className="relative w-fit">
             <img
               src={form.screenshot_url}
               alt="צילום מסך העסקה"
-              className="max-h-56 rounded-lg border border-zinc-800"
+              className="max-h-56 rounded-lg border border-border"
             />
             <button
               type="button"
               onClick={() => update('screenshot_url', '')}
-              className="absolute -right-2 -top-2 rounded-full bg-red-600 p-1 text-white shadow hover:bg-red-500"
+              className="absolute -right-2 -top-2 rounded-full bg-destructive p-1 text-white shadow hover:bg-destructive/90"
               aria-label="הסרת תמונה"
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" />
-              </svg>
+              <X className="h-3.5 w-3.5" strokeWidth={3} />
             </button>
           </div>
         )}
       </Section>
 
-      <button
-        type="submit"
-        disabled={saving || uploadingScreenshot}
-        className="rounded-lg bg-emerald-600 px-4 py-3 font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-50"
-      >
+      <Button type="submit" disabled={saving || uploadingScreenshot} size="lg">
         {saving ? 'שומר...' : isEditing ? 'עדכון עסקה' : 'שמירת עסקה'}
-      </button>
+      </Button>
     </form>
-  )
-}
-
-const inputClass =
-  'w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2.5 text-zinc-100 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500'
-
-function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <section className="flex flex-col gap-4 rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
-      <h3 className="text-sm font-semibold text-zinc-400">{title}</h3>
-      {children}
-    </section>
-  )
-}
-
-function Field({
-  label,
-  required,
-  hint,
-  children,
-}: {
-  label: string
-  required?: boolean
-  hint?: string
-  children: ReactNode
-}) {
-  return (
-    <label className="flex flex-col gap-1.5">
-      <span className="text-sm font-medium text-zinc-300">
-        {label}
-        {required && <span className="text-red-400"> *</span>}
-      </span>
-      {children}
-      {hint && <span className="text-xs text-zinc-500">{hint}</span>}
-    </label>
   )
 }

@@ -5,6 +5,20 @@ import { supabase } from '../../lib/supabaseClient'
 import { useCustomerBillings } from '../../lib/useCustomerBillings'
 import { daysUntil } from '../../lib/businessStats'
 import { Section, Field, inputClass } from '../../components/BusinessFormControls'
+import { Button } from '../../components/ui/button'
+import { Alert, AlertDescription } from '../../components/ui/alert'
+import { Badge } from '../../components/ui/badge'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../../components/ui/alert-dialog'
 import type { CustomerStatus } from '../../types/business.types'
 
 const STATUSES: CustomerStatus[] = ['active', 'paused', 'cancelled']
@@ -84,6 +98,7 @@ export function CustomerFormPage() {
   const [savingBilling, setSavingBilling] = useState(false)
   const [billingErrorMsg, setBillingErrorMsg] = useState<string | null>(null)
   const [deletingBillingId, setDeletingBillingId] = useState<string | null>(null)
+  const [confirmDeleteBillingId, setConfirmDeleteBillingId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!isEditing || !id) return
@@ -207,29 +222,35 @@ export function CustomerFormPage() {
   }
 
   async function handleDeleteBilling(billingId: string) {
-    if (!confirm('למחוק את החיוב? פעולה זו אינה הפיכה.')) return
     setDeletingBillingId(billingId)
     const { error } = await supabase.from('customer_billings').delete().eq('id', billingId)
     setDeletingBillingId(null)
+    setConfirmDeleteBillingId(null)
     if (error) setBillingErrorMsg(error.message)
   }
 
   if (loading) {
-    return <p className="py-10 text-center text-zinc-500">טוען לקוח...</p>
+    return <p className="py-10 text-center text-muted-foreground">טוען לקוח...</p>
   }
 
   return (
     <div className="flex flex-col gap-5">
       <div className="flex items-center gap-3">
-        <Link to="/business/customers" className="text-sm text-zinc-400 hover:text-zinc-200">
+        <Link to="/business/customers" className="text-sm text-muted-foreground hover:text-foreground">
           ‹ חזרה ללקוחות
         </Link>
       </div>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-        <h2 className="text-xl font-bold">{isEditing ? form.full_name || 'עריכת לקוח' : 'לקוח חדש'}</h2>
+        <h2 className="font-heading text-xl font-semibold">
+          {isEditing ? form.full_name || 'עריכת לקוח' : 'לקוח חדש'}
+        </h2>
 
-        {error && <p className="rounded-lg bg-red-950/50 px-3 py-2 text-sm text-red-400">{error}</p>}
+        {error && (
+          <Alert variant="destructive">
+            <AlertDescription className="text-destructive">{error}</AlertDescription>
+          </Alert>
+        )}
 
         <Section title="פרטי קשר">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -262,7 +283,7 @@ export function CustomerFormPage() {
               />
             </Field>
             <Field label="סטטוס" required>
-              <div className="flex gap-1 rounded-lg border border-zinc-700 bg-zinc-800 p-1">
+              <div className="flex gap-1 rounded-lg border border-input bg-muted p-1">
                 {STATUSES.map((s) => (
                   <button
                     key={s}
@@ -271,11 +292,11 @@ export function CustomerFormPage() {
                     className={`flex-1 rounded-md py-2 text-sm font-semibold transition ${
                       form.status === s
                         ? s === 'active'
-                          ? 'bg-emerald-600 text-white'
+                          ? 'bg-primary text-primary-foreground'
                           : s === 'paused'
                             ? 'bg-amber-600 text-white'
-                            : 'bg-red-600 text-white'
-                        : 'text-zinc-400'
+                            : 'bg-destructive text-white'
+                        : 'text-muted-foreground'
                     }`}
                   >
                     {statusLabel[s]}
@@ -392,84 +413,86 @@ export function CustomerFormPage() {
           </Field>
         </Section>
 
-        <button
-          type="submit"
-          disabled={saving}
-          className="rounded-lg bg-emerald-600 px-4 py-3 font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-50"
-        >
+        <Button type="submit" size="lg" disabled={saving}>
           {saving ? 'שומר...' : isEditing ? 'עדכון לקוח' : 'שמירת לקוח'}
-        </button>
+        </Button>
       </form>
 
       {isEditing && (
         <Section title="היסטוריית חיובים">
           {billingsError && (
-            <p className="rounded-lg bg-red-950/50 px-3 py-2 text-sm text-red-400">{billingsError}</p>
+            <Alert variant="destructive">
+              <AlertDescription className="text-destructive">{billingsError}</AlertDescription>
+            </Alert>
           )}
           {billingErrorMsg && (
-            <p className="rounded-lg bg-red-950/50 px-3 py-2 text-sm text-red-400">{billingErrorMsg}</p>
+            <Alert variant="destructive">
+              <AlertDescription className="text-destructive">{billingErrorMsg}</AlertDescription>
+            </Alert>
           )}
 
           {customerBillings.length === 0 ? (
-            <p className="py-4 text-center text-sm text-zinc-500">אין חיובים עדיין.</p>
+            <p className="py-4 text-center text-sm text-muted-foreground">אין חיובים עדיין.</p>
           ) : (
-            <div className="overflow-x-auto rounded-lg border border-zinc-800">
-              <table className="w-full min-w-[560px] text-sm">
-                <thead className="bg-zinc-900 text-zinc-400">
-                  <tr>
-                    <th className="px-3 py-2 text-right font-medium">חודש</th>
-                    <th className="px-3 py-2 text-right font-medium">סכום</th>
-                    <th className="px-3 py-2 text-right font-medium">עלות מסלול</th>
-                    <th className="px-3 py-2 text-right font-medium">רווח</th>
-                    <th className="px-3 py-2 text-right font-medium">הערה</th>
-                    <th className="px-3 py-2"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-800">
+            <div className="overflow-x-auto rounded-lg border border-border">
+              <Table className="min-w-[560px]">
+                <TableHeader className="bg-muted">
+                  <TableRow>
+                    <TableHead>חודש</TableHead>
+                    <TableHead>סכום</TableHead>
+                    <TableHead>עלות מסלול</TableHead>
+                    <TableHead>רווח</TableHead>
+                    <TableHead>הערה</TableHead>
+                    <TableHead></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {customerBillings.map((b) => {
                     const profit = b.amount - b.plan_cost
                     return (
-                      <tr key={b.id} className="hover:bg-zinc-900/60">
-                        <td className="px-3 py-2 text-zinc-300" dir="ltr">
+                      <TableRow key={b.id}>
+                        <TableCell className="text-muted-foreground" dir="ltr">
                           {b.billing_month.slice(0, 7)}
                           {b.is_recurring_monthly && (
-                            <span className="mr-2 rounded bg-zinc-800 px-1.5 py-0.5 text-xs text-zinc-400">
+                            <Badge variant="outline" className="me-2 border-transparent bg-muted text-muted-foreground">
                               חודשי
-                            </span>
+                            </Badge>
                           )}
-                        </td>
-                        <td className="px-3 py-2 text-zinc-200" dir="ltr">
+                        </TableCell>
+                        <TableCell className="text-foreground" dir="ltr">
                           {b.amount.toLocaleString('en-US')} ₪
-                        </td>
-                        <td className="px-3 py-2 text-zinc-400" dir="ltr">
+                        </TableCell>
+                        <TableCell className="text-muted-foreground" dir="ltr">
                           {b.plan_cost.toLocaleString('en-US')} ₪
-                        </td>
-                        <td
-                          className={`px-3 py-2 font-medium ${profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}
+                        </TableCell>
+                        <TableCell
+                          className={`font-medium ${profit >= 0 ? 'text-primary' : 'text-destructive'}`}
                           dir="ltr"
                         >
                           {profit.toLocaleString('en-US')} ₪
-                        </td>
-                        <td className="px-3 py-2 text-zinc-400">{b.billing_note ?? '—'}</td>
-                        <td className="px-3 py-2 text-left">
-                          <button
-                            onClick={() => handleDeleteBilling(b.id)}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">{b.billing_note ?? '—'}</TableCell>
+                        <TableCell className="text-left">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setConfirmDeleteBillingId(b.id)}
                             disabled={deletingBillingId === b.id}
-                            className="text-xs text-zinc-400 hover:text-red-400 disabled:opacity-50"
+                            className="text-muted-foreground hover:text-destructive"
                           >
                             מחיקה
-                          </button>
-                        </td>
-                      </tr>
+                          </Button>
+                        </TableCell>
+                      </TableRow>
                     )
                   })}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           )}
 
-          <form onSubmit={handleAddBilling} className="flex flex-col gap-4 border-t border-zinc-800 pt-4">
-            <h4 className="text-sm font-semibold text-zinc-400">הוספת חיוב</h4>
+          <form onSubmit={handleAddBilling} className="flex flex-col gap-4 border-t border-border pt-4">
+            <h4 className="text-sm font-semibold text-muted-foreground">הוספת חיוב</h4>
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
               <Field label="סכום" required>
                 <input
@@ -503,14 +526,14 @@ export function CustomerFormPage() {
                 />
               </Field>
               <Field label="חיוב חודשי חוזר">
-                <label className="flex h-[42px] items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-800 px-3">
+                <label className="flex h-10 items-center gap-2 rounded-lg border border-input bg-card px-3">
                   <input
                     type="checkbox"
                     checked={billingForm.is_recurring_monthly}
                     onChange={(e) => updateBilling('is_recurring_monthly', e.target.checked)}
-                    className="h-4 w-4 accent-emerald-500"
+                    className="h-4 w-4 accent-primary"
                   />
-                  <span className="text-sm text-zinc-300">חודשי</span>
+                  <span className="text-sm text-foreground">חודשי</span>
                 </label>
               </Field>
             </div>
@@ -523,16 +546,30 @@ export function CustomerFormPage() {
                 className={inputClass}
               />
             </Field>
-            <button
-              type="submit"
-              disabled={savingBilling}
-              className="self-start rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-50"
-            >
+            <Button type="submit" disabled={savingBilling} className="self-start">
               {savingBilling ? 'שומר...' : '+ הוספת חיוב'}
-            </button>
+            </Button>
           </form>
         </Section>
       )}
+
+      <AlertDialog open={confirmDeleteBillingId != null} onOpenChange={(next: boolean) => !next && setConfirmDeleteBillingId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>מחיקת חיוב</AlertDialogTitle>
+            <AlertDialogDescription>פעולה זו אינה הפיכה. למחוק את החיוב?</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>ביטול</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => confirmDeleteBillingId && handleDeleteBilling(confirmDeleteBillingId)}
+            >
+              מחיקה
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

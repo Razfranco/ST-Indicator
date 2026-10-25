@@ -6,6 +6,20 @@ import { useFixedExpenses } from '../../lib/useFixedExpenses'
 import { countFixedExpenseOccurrences, currentMonthKey, monthKeyOf } from '../../lib/businessStats'
 import { formatILS } from '../../lib/format'
 import { Section, Field, inputClass } from '../../components/BusinessFormControls'
+import { Button } from '../../components/ui/button'
+import { Alert, AlertDescription } from '../../components/ui/alert'
+import { Card } from '../../components/ui/card'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../../components/ui/alert-dialog'
 import type { AdditionalExpense, FixedExpense, FixedExpenseRecurrence } from '../../types/business.types'
 
 const RECURRENCES: FixedExpenseRecurrence[] = ['weekly', 'monthly', 'yearly']
@@ -63,6 +77,8 @@ function toFixedForm(expense: FixedExpense): FixedFormState {
   }
 }
 
+type PendingDelete = { kind: 'variable' | 'fixed'; id: string }
+
 export function ExpensesPage() {
   const { expenses, loading, error: loadError } = useExpenses()
   const { fixedExpenses, loading: loadingFixed, error: loadFixedError } = useFixedExpenses()
@@ -80,6 +96,8 @@ export function ExpensesPage() {
   const [savingFixed, setSavingFixed] = useState(false)
   const [deletingFixedId, setDeletingFixedId] = useState<string | null>(null)
   const [fixedActionError, setFixedActionError] = useState<string | null>(null)
+
+  const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null)
 
   const error = loadError ?? actionError ?? loadFixedError ?? fixedActionError
 
@@ -155,10 +173,10 @@ export function ExpensesPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('למחוק את ההוצאה? פעולה זו אינה הפיכה.')) return
     setDeletingId(id)
     const { error } = await supabase.from('additional_expenses').delete().eq('id', id)
     setDeletingId(null)
+    setPendingDelete(null)
     if (error) setActionError(error.message)
   }
 
@@ -204,21 +222,31 @@ export function ExpensesPage() {
   }
 
   async function handleDeleteFixed(id: string) {
-    if (!confirm('למחוק את ההוצאה הקבועה? פעולה זו אינה הפיכה.')) return
     setDeletingFixedId(id)
     const { error } = await supabase.from('fixed_expenses').delete().eq('id', id)
     setDeletingFixedId(null)
+    setPendingDelete(null)
     if (error) setFixedActionError(error.message)
+  }
+
+  function confirmPendingDelete() {
+    if (!pendingDelete) return
+    if (pendingDelete.kind === 'fixed') handleDeleteFixed(pendingDelete.id)
+    else handleDelete(pendingDelete.id)
   }
 
   return (
     <div className="flex flex-col gap-5">
-      <h2 className="text-xl font-bold">הוצאות</h2>
+      <h2 className="font-heading text-xl font-semibold">הוצאות</h2>
 
-      {error && <p className="rounded-lg bg-red-950/50 px-3 py-2 text-sm text-red-400">{error}</p>}
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription className="text-destructive">{error}</AlertDescription>
+        </Alert>
+      )}
 
       <Section title="הוצאות קבועות">
-        <p className="text-xs text-zinc-500">
+        <p className="text-xs text-muted-foreground">
           הוצאה קבועה נוספת אוטומטית לכל תקופה (שבוע/חודש/שנה) מתאריך ההתחלה ואילך — אין צורך להזין
           אותה מחדש בכל פעם.
         </p>
@@ -276,69 +304,65 @@ export function ExpensesPage() {
             </Field>
           </div>
           <div className="flex gap-2">
-            <button
-              type="submit"
-              disabled={savingFixed}
-              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-50"
-            >
+            <Button type="submit" disabled={savingFixed}>
               {savingFixed ? 'שומר...' : editingFixedId ? 'עדכון הוצאה קבועה' : '+ הוספת הוצאה קבועה'}
-            </button>
+            </Button>
             {editingFixedId && (
-              <button
-                type="button"
-                onClick={cancelEditFixed}
-                className="rounded-lg border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:border-zinc-500"
-              >
+              <Button type="button" variant="outline" onClick={cancelEditFixed}>
                 ביטול
-              </button>
+              </Button>
             )}
           </div>
         </form>
 
         {!loadingFixed && fixedExpenses.length > 0 && (
-          <div className="overflow-x-auto rounded-lg border border-zinc-800">
-            <table className="w-full min-w-[560px] text-sm">
-              <thead className="bg-zinc-900 text-zinc-400">
-                <tr>
-                  <th className="px-3 py-2 text-right font-medium">הוצאה</th>
-                  <th className="px-3 py-2 text-right font-medium">סכום</th>
-                  <th className="px-3 py-2 text-right font-medium">תדירות</th>
-                  <th className="px-3 py-2 text-right font-medium">תאריך התחלה</th>
-                  <th className="px-3 py-2 text-right font-medium">הערה</th>
-                  <th className="px-3 py-2"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-800">
+          <div className="overflow-x-auto rounded-lg border border-border">
+            <Table className="min-w-[560px]">
+              <TableHeader className="bg-muted">
+                <TableRow>
+                  <TableHead>הוצאה</TableHead>
+                  <TableHead>סכום</TableHead>
+                  <TableHead>תדירות</TableHead>
+                  <TableHead>תאריך התחלה</TableHead>
+                  <TableHead>הערה</TableHead>
+                  <TableHead></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {fixedExpenses.map((fe) => (
-                  <tr key={fe.id} className="hover:bg-zinc-900/60">
-                    <td className="px-3 py-2 font-medium text-zinc-200">{fe.expense_name}</td>
-                    <td className="px-3 py-2 text-red-400" dir="ltr">
+                  <TableRow key={fe.id}>
+                    <TableCell className="font-medium text-foreground">{fe.expense_name}</TableCell>
+                    <TableCell className="text-destructive" dir="ltr">
                       {formatILS(fe.amount)}
-                    </td>
-                    <td className="px-3 py-2 text-zinc-300">{recurrenceLabel[fe.recurrence]}</td>
-                    <td className="px-3 py-2 text-zinc-300" dir="ltr">
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{recurrenceLabel[fe.recurrence]}</TableCell>
+                    <TableCell className="text-muted-foreground" dir="ltr">
                       {fe.start_date}
-                    </td>
-                    <td className="px-3 py-2 text-zinc-400">{fe.note ?? '—'}</td>
-                    <td className="whitespace-nowrap px-3 py-2 text-left">
-                      <button
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{fe.note ?? '—'}</TableCell>
+                    <TableCell className="text-left">
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         onClick={() => startEditFixed(fe)}
-                        className="ml-2 text-xs text-zinc-400 hover:text-emerald-400"
+                        className="me-2 text-muted-foreground hover:text-primary"
                       >
                         עריכה
-                      </button>
-                      <button
-                        onClick={() => handleDeleteFixed(fe.id)}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setPendingDelete({ kind: 'fixed', id: fe.id })}
                         disabled={deletingFixedId === fe.id}
-                        className="text-xs text-zinc-400 hover:text-red-400 disabled:opacity-50"
+                        className="text-muted-foreground hover:text-destructive"
                       >
                         מחיקה
-                      </button>
-                    </td>
-                  </tr>
+                      </Button>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         )}
       </Section>
@@ -386,27 +410,19 @@ export function ExpensesPage() {
             </Field>
           </div>
           <div className="flex gap-2">
-            <button
-              type="submit"
-              disabled={saving}
-              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-50"
-            >
+            <Button type="submit" disabled={saving}>
               {saving ? 'שומר...' : editingId ? 'עדכון הוצאה' : '+ הוספת הוצאה'}
-            </button>
+            </Button>
             {editingId && (
-              <button
-                type="button"
-                onClick={cancelEdit}
-                className="rounded-lg border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:border-zinc-500"
-              >
+              <Button type="button" variant="outline" onClick={cancelEdit}>
                 ביטול
-              </button>
+              </Button>
             )}
           </div>
         </form>
       </Section>
 
-      <div className="flex flex-wrap items-end justify-between gap-3 rounded-xl border border-zinc-800 bg-zinc-900/40 p-3">
+      <Card className="flex-row flex-wrap items-end justify-between gap-3 p-3 shadow-sm">
         <Field label="סינון לפי חודש">
           <input
             type="month"
@@ -416,86 +432,105 @@ export function ExpensesPage() {
           />
         </Field>
         <div className="text-left">
-          <div className="text-xs text-zinc-500">
+          <div className="text-xs text-muted-foreground">
             משתנות {formatILS(variableTotal)} + קבועות {formatILS(fixedTotal)}
           </div>
-          <div className="text-xl font-semibold text-red-400" dir="ltr">
+          <div className="text-xl font-semibold text-destructive" dir="ltr">
             {formatILS(total)}
           </div>
         </div>
-      </div>
+      </Card>
 
       {fixedThisMonth.length > 0 && (
-        <div className="overflow-x-auto rounded-xl border border-zinc-800">
-          <table className="w-full min-w-[420px] text-sm">
-            <thead className="bg-zinc-900 text-zinc-400">
-              <tr>
-                <th className="px-3 py-2 text-right font-medium">הוצאה קבועה (החודש)</th>
-                <th className="px-3 py-2 text-right font-medium">מופעים</th>
-                <th className="px-3 py-2 text-right font-medium">סה״כ</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-800">
+        <div className="overflow-x-auto rounded-xl border border-border">
+          <Table className="min-w-[420px]">
+            <TableHeader className="bg-muted">
+              <TableRow>
+                <TableHead>הוצאה קבועה (החודש)</TableHead>
+                <TableHead>מופעים</TableHead>
+                <TableHead>סה״כ</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {fixedThisMonth.map(({ expense, occurrences, contribution }) => (
-                <tr key={expense.id} className="hover:bg-zinc-900/60">
-                  <td className="px-3 py-2 font-medium text-zinc-200">{expense.expense_name}</td>
-                  <td className="px-3 py-2 text-zinc-300" dir="ltr">
+                <TableRow key={expense.id}>
+                  <TableCell className="font-medium text-foreground">{expense.expense_name}</TableCell>
+                  <TableCell className="text-muted-foreground" dir="ltr">
                     {occurrences}
-                  </td>
-                  <td className="px-3 py-2 text-red-400" dir="ltr">
+                  </TableCell>
+                  <TableCell className="text-destructive" dir="ltr">
                     {formatILS(contribution)}
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       )}
 
       {loading ? (
-        <p className="py-10 text-center text-zinc-500">טוען הוצאות...</p>
+        <p className="py-10 text-center text-muted-foreground">טוען הוצאות...</p>
       ) : filtered.length === 0 ? (
-        <p className="py-10 text-center text-zinc-500">אין הוצאות משתנות להצגה בחודש זה.</p>
+        <p className="py-10 text-center text-muted-foreground">אין הוצאות משתנות להצגה בחודש זה.</p>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-zinc-800">
-          <table className="w-full min-w-[520px] text-sm">
-            <thead className="bg-zinc-900 text-zinc-400">
-              <tr>
-                <th className="px-3 py-2 text-right font-medium">הוצאה משתנה (החודש)</th>
-                <th className="px-3 py-2 text-right font-medium">סכום</th>
-                <th className="px-3 py-2 text-right font-medium">הערה</th>
-                <th className="px-3 py-2"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-800">
+        <div className="overflow-x-auto rounded-xl border border-border">
+          <Table className="min-w-[520px]">
+            <TableHeader className="bg-muted">
+              <TableRow>
+                <TableHead>הוצאה משתנה (החודש)</TableHead>
+                <TableHead>סכום</TableHead>
+                <TableHead>הערה</TableHead>
+                <TableHead></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {filtered.map((e) => (
-                <tr key={e.id} className="hover:bg-zinc-900/60">
-                  <td className="px-3 py-2 font-medium text-zinc-200">{e.expense_name}</td>
-                  <td className="px-3 py-2 text-red-400" dir="ltr">
+                <TableRow key={e.id}>
+                  <TableCell className="font-medium text-foreground">{e.expense_name}</TableCell>
+                  <TableCell className="text-destructive" dir="ltr">
                     {formatILS(e.amount)}
-                  </td>
-                  <td className="px-3 py-2 text-zinc-400">{e.note}</td>
-                  <td className="whitespace-nowrap px-3 py-2 text-left">
-                    <button
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">{e.note}</TableCell>
+                  <TableCell className="text-left">
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={() => startEdit(e)}
-                      className="ml-2 text-xs text-zinc-400 hover:text-emerald-400"
+                      className="me-2 text-muted-foreground hover:text-primary"
                     >
                       עריכה
-                    </button>
-                    <button
-                      onClick={() => handleDelete(e.id)}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setPendingDelete({ kind: 'variable', id: e.id })}
                       disabled={deletingId === e.id}
-                      className="text-xs text-zinc-400 hover:text-red-400 disabled:opacity-50"
+                      className="text-muted-foreground hover:text-destructive"
                     >
                       מחיקה
-                    </button>
-                  </td>
-                </tr>
+                    </Button>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       )}
+
+      <AlertDialog open={pendingDelete != null} onOpenChange={(next: boolean) => !next && setPendingDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>מחיקת הוצאה</AlertDialogTitle>
+            <AlertDialogDescription>פעולה זו אינה הפיכה. למחוק את ההוצאה?</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>ביטול</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={confirmPendingDelete}>
+              מחיקה
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

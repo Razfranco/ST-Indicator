@@ -7,6 +7,11 @@ import { useFixedExpenses } from '../../lib/useFixedExpenses'
 import { computeYearCashflow, countFixedExpenseOccurrences, monthKeyOf } from '../../lib/businessStats'
 import { formatILS } from '../../lib/format'
 import { StatTile } from '../../components/StatTile'
+import { Card } from '../../components/ui/card'
+import { Button } from '../../components/ui/button'
+import { Badge } from '../../components/ui/badge'
+import { Alert, AlertDescription } from '../../components/ui/alert'
+import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 
 const now = new Date()
 
@@ -62,16 +67,20 @@ export function CashflowPage() {
   const maxAbsNet = useMemo(() => Math.max(1, ...months.map((m) => Math.abs(m.net))), [months])
 
   if (loading) {
-    return <p className="py-10 text-center text-zinc-500">טוען נתוני תזרים...</p>
+    return <p className="py-10 text-center text-muted-foreground">טוען נתוני תזרים...</p>
   }
 
   if (error) {
-    return <p className="rounded-lg bg-red-950/50 px-3 py-2 text-sm text-red-400">{error}</p>
+    return (
+      <Alert variant="destructive">
+        <AlertDescription className="text-destructive">{error}</AlertDescription>
+      </Alert>
+    )
   }
 
   return (
     <div className="flex flex-col gap-5">
-      <h2 className="text-xl font-bold">תזרים מזומנים</h2>
+      <h2 className="font-heading text-xl font-semibold">תזרים מזומנים</h2>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatTile label={`הכנסות — ${selected.label} ${year}`} value={formatILS(selected.income)} tone="positive" />
@@ -92,40 +101,32 @@ export function CashflowPage() {
         />
       </div>
 
-      <section className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
+      <Card className="p-4 shadow-sm">
         <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-zinc-400">תזרים לפי חודש</h3>
+          <h3 className="font-heading text-sm font-semibold text-muted-foreground">תזרים לפי חודש</h3>
           <div className="flex items-center gap-2 text-sm">
-            <button
-              type="button"
-              onClick={() => setYear((y) => y - 1)}
-              className="rounded-md border border-zinc-700 px-2 py-1 text-zinc-300 hover:border-zinc-500"
-            >
+            <Button variant="outline" size="sm" onClick={() => setYear((y) => y - 1)}>
               ‹ קודמת
-            </button>
-            <span className="min-w-[60px] text-center font-medium text-zinc-200" dir="ltr">
+            </Button>
+            <span className="min-w-[60px] text-center font-medium text-foreground" dir="ltr">
               {year}
             </span>
-            <button
-              type="button"
-              onClick={() => setYear((y) => y + 1)}
-              className="rounded-md border border-zinc-700 px-2 py-1 text-zinc-300 hover:border-zinc-500"
-            >
+            <Button variant="outline" size="sm" onClick={() => setYear((y) => y + 1)}>
               הבאה ›
-            </button>
+            </Button>
           </div>
         </div>
 
         <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
           {months.map((m) => {
-            const intensity = m.hasData ? 0.25 + 0.6 * (Math.abs(m.net) / maxAbsNet) : 0
+            const intensity = m.hasData ? 0.12 + 0.3 * (Math.abs(m.net) / maxAbsNet) : 0
             const bg = !m.hasData
               ? 'transparent'
               : m.net > 0
-                ? `rgba(52, 211, 153, ${intensity})`
+                ? `rgba(15, 81, 50, ${intensity})`
                 : m.net < 0
-                  ? `rgba(248, 113, 113, ${intensity})`
-                  : 'rgba(113, 113, 122, 0.3)'
+                  ? `rgba(166, 52, 42, ${intensity})`
+                  : 'rgba(107, 100, 89, 0.15)'
             const isSelected = m.monthIndex === selectedMonth
             return (
               <button
@@ -133,14 +134,14 @@ export function CashflowPage() {
                 type="button"
                 onClick={() => setSelectedMonth(m.monthIndex)}
                 className={`flex aspect-[4/3] flex-col items-center justify-center gap-1 rounded-lg border text-sm transition ${
-                  isSelected ? 'border-emerald-500 ring-1 ring-emerald-500' : 'border-zinc-800/60'
+                  isSelected ? 'border-primary ring-1 ring-primary' : 'border-border'
                 }`}
                 style={{ backgroundColor: bg }}
               >
-                <span className="text-zinc-300">{m.label}</span>
+                <span className="text-foreground">{m.label}</span>
                 <span
                   className={`font-semibold ${
-                    !m.hasData ? 'text-zinc-600' : m.net >= 0 ? 'text-emerald-300' : 'text-red-300'
+                    !m.hasData ? 'text-muted-foreground' : m.net >= 0 ? 'text-primary' : 'text-destructive'
                   }`}
                   dir="ltr"
                 >
@@ -150,140 +151,140 @@ export function CashflowPage() {
             )
           })}
         </div>
-      </section>
+      </Card>
 
-      <section className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
-        <h3 className="mb-3 text-sm font-semibold text-zinc-400">
+      <Card className="p-4 shadow-sm">
+        <h3 className="mb-3 font-heading text-sm font-semibold text-muted-foreground">
           פירוט — {selected.label} {year}
         </h3>
 
-        <h4 className="mb-2 text-xs font-semibold text-zinc-500">חיובים</h4>
+        <h4 className="mb-2 text-xs font-semibold text-muted-foreground">חיובים</h4>
         {selectedBillings.length === 0 ? (
-          <p className="py-3 text-center text-sm text-zinc-500">אין חיובים בחודש זה.</p>
+          <p className="py-3 text-center text-sm text-muted-foreground">אין חיובים בחודש זה.</p>
         ) : (
-          <div className="mb-4 overflow-x-auto rounded-lg border border-zinc-800">
-            <table className="w-full min-w-[560px] text-sm">
-              <thead className="bg-zinc-900 text-zinc-400">
-                <tr>
-                  <th className="px-3 py-2 text-right font-medium">לקוח</th>
-                  <th className="px-3 py-2 text-right font-medium">סכום</th>
-                  <th className="px-3 py-2 text-right font-medium">עלות מסלול</th>
-                  <th className="px-3 py-2 text-right font-medium">רווח</th>
-                  <th className="px-3 py-2 text-right font-medium">הערה</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-800">
+          <div className="mb-4 overflow-x-auto rounded-lg border border-border">
+            <Table className="min-w-[560px]">
+              <TableHeader className="bg-muted">
+                <TableRow>
+                  <TableHead>לקוח</TableHead>
+                  <TableHead>סכום</TableHead>
+                  <TableHead>עלות מסלול</TableHead>
+                  <TableHead>רווח</TableHead>
+                  <TableHead>הערה</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {selectedBillings.map((b) => {
                   const profit = b.amount - b.plan_cost
                   return (
-                    <tr key={b.id} className="hover:bg-zinc-900/60">
-                      <td className="px-3 py-2">
+                    <TableRow key={b.id}>
+                      <TableCell>
                         <Link
                           to={`/business/customers/${b.customer_id}/edit`}
-                          className="font-medium text-zinc-200 hover:text-emerald-400"
+                          className="font-medium text-foreground hover:text-primary"
                         >
                           {customerNameById.get(b.customer_id) ?? 'לקוח לא ידוע'}
                         </Link>
                         {b.is_recurring_monthly && (
-                          <span className="mr-2 rounded bg-zinc-800 px-1.5 py-0.5 text-xs text-zinc-400">
+                          <Badge variant="outline" className="me-2 border-transparent bg-muted text-muted-foreground">
                             חודשי
-                          </span>
+                          </Badge>
                         )}
-                      </td>
-                      <td className="px-3 py-2 text-zinc-200" dir="ltr">
+                      </TableCell>
+                      <TableCell className="text-foreground" dir="ltr">
                         {formatILS(b.amount)}
-                      </td>
-                      <td className="px-3 py-2 text-zinc-400" dir="ltr">
+                      </TableCell>
+                      <TableCell className="text-muted-foreground" dir="ltr">
                         {formatILS(-b.plan_cost)}
-                      </td>
-                      <td
-                        className={`px-3 py-2 font-medium ${profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}
+                      </TableCell>
+                      <TableCell
+                        className={`font-medium ${profit >= 0 ? 'text-primary' : 'text-destructive'}`}
                         dir="ltr"
                       >
                         {formatILS(profit)}
-                      </td>
-                      <td className="px-3 py-2 text-zinc-400">{b.billing_note ?? '—'}</td>
-                    </tr>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">{b.billing_note ?? '—'}</TableCell>
+                    </TableRow>
                   )
                 })}
-              </tbody>
-              <tfoot>
-                <tr className="border-t border-zinc-800 bg-zinc-900/60 font-medium">
-                  <td className="px-3 py-2 text-zinc-300">סה״כ</td>
-                  <td className="px-3 py-2 text-emerald-400" dir="ltr">
+              </TableBody>
+              <TableFooter>
+                <TableRow>
+                  <TableCell className="text-foreground">סה״כ</TableCell>
+                  <TableCell className="text-primary" dir="ltr">
                     {formatILS(selected.income)}
-                  </td>
-                  <td className="px-3 py-2 text-zinc-400" dir="ltr">
+                  </TableCell>
+                  <TableCell className="text-muted-foreground" dir="ltr">
                     {formatILS(-selected.planCost)}
-                  </td>
-                  <td className="px-3 py-2 text-zinc-300" dir="ltr">
+                  </TableCell>
+                  <TableCell className="text-foreground" dir="ltr">
                     {formatILS(selected.income - selected.planCost)}
-                  </td>
-                  <td className="px-3 py-2"></td>
-                </tr>
-              </tfoot>
-            </table>
+                  </TableCell>
+                  <TableCell></TableCell>
+                </TableRow>
+              </TableFooter>
+            </Table>
           </div>
         )}
 
-        <h4 className="mb-2 text-xs font-semibold text-zinc-500">הוצאות קבועות</h4>
+        <h4 className="mb-2 text-xs font-semibold text-muted-foreground">הוצאות קבועות</h4>
         {selectedFixedExpenses.length === 0 ? (
-          <p className="py-3 text-center text-sm text-zinc-500">אין הוצאות קבועות בחודש זה.</p>
+          <p className="py-3 text-center text-sm text-muted-foreground">אין הוצאות קבועות בחודש זה.</p>
         ) : (
-          <div className="mb-4 overflow-x-auto rounded-lg border border-zinc-800">
-            <table className="w-full min-w-[420px] text-sm">
-              <thead className="bg-zinc-900 text-zinc-400">
-                <tr>
-                  <th className="px-3 py-2 text-right font-medium">הוצאה</th>
-                  <th className="px-3 py-2 text-right font-medium">מופעים</th>
-                  <th className="px-3 py-2 text-right font-medium">סה״כ</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-800">
+          <div className="mb-4 overflow-x-auto rounded-lg border border-border">
+            <Table className="min-w-[420px]">
+              <TableHeader className="bg-muted">
+                <TableRow>
+                  <TableHead>הוצאה</TableHead>
+                  <TableHead>מופעים</TableHead>
+                  <TableHead>סה״כ</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {selectedFixedExpenses.map(({ expense, occurrences }) => (
-                  <tr key={expense.id} className="hover:bg-zinc-900/60">
-                    <td className="px-3 py-2 font-medium text-zinc-200">{expense.expense_name}</td>
-                    <td className="px-3 py-2 text-zinc-300" dir="ltr">
+                  <TableRow key={expense.id}>
+                    <TableCell className="font-medium text-foreground">{expense.expense_name}</TableCell>
+                    <TableCell className="text-muted-foreground" dir="ltr">
                       {occurrences}
-                    </td>
-                    <td className="px-3 py-2 text-red-400" dir="ltr">
+                    </TableCell>
+                    <TableCell className="text-destructive" dir="ltr">
                       {formatILS(-occurrences * expense.amount)}
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         )}
 
-        <h4 className="mb-2 text-xs font-semibold text-zinc-500">הוצאות משתנות</h4>
+        <h4 className="mb-2 text-xs font-semibold text-muted-foreground">הוצאות משתנות</h4>
         {selectedExpenses.length === 0 ? (
-          <p className="py-3 text-center text-sm text-zinc-500">אין הוצאות משתנות בחודש זה.</p>
+          <p className="py-3 text-center text-sm text-muted-foreground">אין הוצאות משתנות בחודש זה.</p>
         ) : (
-          <div className="overflow-x-auto rounded-lg border border-zinc-800">
-            <table className="w-full min-w-[420px] text-sm">
-              <thead className="bg-zinc-900 text-zinc-400">
-                <tr>
-                  <th className="px-3 py-2 text-right font-medium">הוצאה</th>
-                  <th className="px-3 py-2 text-right font-medium">סכום</th>
-                  <th className="px-3 py-2 text-right font-medium">הערה</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-800">
+          <div className="overflow-x-auto rounded-lg border border-border">
+            <Table className="min-w-[420px]">
+              <TableHeader className="bg-muted">
+                <TableRow>
+                  <TableHead>הוצאה</TableHead>
+                  <TableHead>סכום</TableHead>
+                  <TableHead>הערה</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {selectedExpenses.map((e) => (
-                  <tr key={e.id} className="hover:bg-zinc-900/60">
-                    <td className="px-3 py-2 font-medium text-zinc-200">{e.expense_name}</td>
-                    <td className="px-3 py-2 text-red-400" dir="ltr">
+                  <TableRow key={e.id}>
+                    <TableCell className="font-medium text-foreground">{e.expense_name}</TableCell>
+                    <TableCell className="text-destructive" dir="ltr">
                       {formatILS(-e.amount)}
-                    </td>
-                    <td className="px-3 py-2 text-zinc-400">{e.note}</td>
-                  </tr>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{e.note}</TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         )}
-      </section>
+      </Card>
     </div>
   )
 }

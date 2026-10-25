@@ -1,12 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { Upload } from 'lucide-react'
 import { supabase } from '../../lib/supabaseClient'
 import { useAuth } from '../../context/AuthContext'
 import { useStudents } from '../../lib/useStudents'
 import { useProfiles } from '../../lib/useProfiles'
 import { useMentorAssignments } from '../../lib/useMentorAssignments'
 import { Section, Field, inputClass } from '../../components/BusinessFormControls'
+import { Button } from '../../components/ui/button'
+import { Checkbox } from '../../components/ui/checkbox'
+import { Label } from '../../components/ui/label'
+import { Alert, AlertDescription } from '../../components/ui/alert'
 import type { MeetingChannel, MeetingStatus, MeetingTranscript } from '../../types/mentorship.types'
 
 const CHANNELS: MeetingChannel[] = ['whatsapp', 'google_meet', 'other']
@@ -249,15 +254,19 @@ export function MeetingFormPage() {
   }
 
   if (loading) {
-    return <p className="py-10 text-center text-zinc-500">טוען פגישה...</p>
+    return <p className="py-10 text-center text-muted-foreground">טוען פגישה...</p>
   }
 
   return (
     <div className="flex flex-col gap-5 pb-6">
       <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-        <h2 className="text-xl font-bold">{isEditing ? 'עריכת פגישה' : 'פגישה חדשה'}</h2>
+        <h2 className="font-heading text-xl font-semibold">{isEditing ? 'עריכת פגישה' : 'פגישה חדשה'}</h2>
 
-        {error && <p className="rounded-lg bg-red-950/50 px-3 py-2 text-sm text-red-400">{error}</p>}
+        {error && (
+          <Alert variant="destructive">
+            <AlertDescription className="text-destructive">{error}</AlertDescription>
+          </Alert>
+        )}
 
         <Section title="פרטי פגישה">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -344,22 +353,21 @@ export function MeetingFormPage() {
 
         <Section title="סטטוס והקשר">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {STATUSES.map((s) => (
-              <button
-                key={s}
-                type="button"
-                onClick={() => update('status', s)}
-                className={`rounded-lg py-2.5 text-sm font-semibold transition ${
-                  form.status === s
-                    ? s === 'cancelled' || s === 'no_show'
-                      ? 'bg-red-600 text-white'
-                      : 'bg-emerald-600 text-white'
-                    : 'border border-zinc-700 text-zinc-400'
-                }`}
-              >
-                {statusLabel[s]}
-              </button>
-            ))}
+            {STATUSES.map((s) => {
+              const active = form.status === s
+              const negative = s === 'cancelled' || s === 'no_show'
+              return (
+                <Button
+                  key={s}
+                  type="button"
+                  variant={active ? 'default' : 'outline'}
+                  onClick={() => update('status', s)}
+                  className={active && negative ? 'bg-destructive text-white hover:bg-destructive/90' : ''}
+                >
+                  {statusLabel[s]}
+                </Button>
+              )
+            })}
           </div>
 
           <Field label="נושא">
@@ -380,51 +388,50 @@ export function MeetingFormPage() {
             />
           </Field>
 
-          <label className="flex items-center gap-2 text-sm text-zinc-300">
-            <input
-              type="checkbox"
+          <Label className="flex items-center gap-2 text-sm font-normal text-foreground">
+            <Checkbox
               checked={form.consent_given}
-              onChange={(e) => update('consent_given', e.target.checked)}
-              className="h-4 w-4 accent-emerald-500"
+              onCheckedChange={(checked) => update('consent_given', checked === true)}
             />
             התקבלה הסכמה להקלטה/תמלול
-          </label>
+          </Label>
         </Section>
 
-        <button
-          type="submit"
-          disabled={saving}
-          className="rounded-lg bg-emerald-600 px-4 py-3 font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-50"
-        >
+        <Button type="submit" disabled={saving} size="lg">
           {saving ? 'שומר...' : isEditing ? 'עדכון פגישה' : 'שמירת פגישה'}
-        </button>
+        </Button>
       </form>
 
       {isEditing && (
         <form onSubmit={handleSaveTranscript}>
           <Section title="תמליל פגישה">
-            <p className="text-xs text-zinc-500">
+            <p className="text-xs text-muted-foreground">
               הדבק/י טקסט או צרף/י קובץ (TXT / SRT / VTT). הסיכום האוטומטי של ה-AI יתווסף בשלב הבא — כרגע רק שמירת התמליל.
             </p>
 
             {transcriptError && (
-              <p className="rounded-lg bg-red-950/50 px-3 py-2 text-sm text-red-400">{transcriptError}</p>
+              <Alert variant="destructive">
+                <AlertDescription className="text-destructive">{transcriptError}</AlertDescription>
+              </Alert>
             )}
 
             {loadingTranscript ? (
-              <p className="text-sm text-zinc-500">טוען תמליל...</p>
+              <p className="text-sm text-muted-foreground">טוען תמליל...</p>
             ) : (
               <>
                 <Field label="קובץ תמליל">
-                  <input
-                    type="file"
-                    accept=".txt,.srt,.vtt,text/plain"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0]
-                      if (file) handleTranscriptFile(file)
-                    }}
-                    className="text-sm text-zinc-400 file:me-3 file:rounded-md file:border-0 file:bg-zinc-800 file:px-3 file:py-2 file:text-zinc-200"
-                  />
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Upload className="h-4 w-4 shrink-0" />
+                    <input
+                      type="file"
+                      accept=".txt,.srt,.vtt,text/plain"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) handleTranscriptFile(file)
+                      }}
+                      className="text-sm text-muted-foreground file:me-3 file:rounded-md file:border file:border-input file:bg-muted file:px-3 file:py-1.5 file:text-foreground"
+                    />
+                  </div>
                 </Field>
 
                 <Field
@@ -444,13 +451,9 @@ export function MeetingFormPage() {
                   />
                 </Field>
 
-                <button
-                  type="submit"
-                  disabled={savingTranscript}
-                  className="self-start rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-50"
-                >
+                <Button type="submit" size="sm" disabled={savingTranscript} className="self-start">
                   {savingTranscript ? 'שומר...' : transcript ? 'עדכון תמליל' : 'שמירת תמליל'}
-                </button>
+                </Button>
               </>
             )}
           </Section>

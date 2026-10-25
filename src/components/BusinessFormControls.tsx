@@ -67,7 +67,7 @@ export function SortHeader<F extends string>({
 }) {
   const active = current === field
   return (
-    <th className="px-3 py-2 text-right font-medium text-muted-foreground">
+    <th className="h-10 px-2 text-start align-middle font-medium whitespace-nowrap text-muted-foreground">
       <button
         type="button"
         onClick={() => onClick(field)}
