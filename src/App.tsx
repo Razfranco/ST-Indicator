@@ -11,6 +11,7 @@ import { Layout, ListIcon, PlusIcon, ChartIcon, DocIcon, AdminIcon } from './com
 import type { NavItem } from './components/Layout'
 import { BusinessLayout } from './components/BusinessLayout'
 import { MentoringLayout } from './components/MentoringLayout'
+import { Toaster } from './components/ui/toast'
 import { LoginPage } from './pages/LoginPage'
 import { PlatformSelectPage } from './pages/PlatformSelectPage'
 import { TradeListPage } from './pages/TradeListPage'
@@ -49,7 +50,7 @@ const AssignmentsPage = lazy(() =>
 )
 
 function PageFallback() {
-  return <p className="py-10 text-center text-zinc-500">טוען...</p>
+  return <p className="py-10 text-center text-muted-foreground">טוען...</p>
 }
 
 const performanceBaseNavItems: NavItem[] = [
@@ -113,6 +114,7 @@ function mentoringPage(element: ReactNode) {
 function App() {
   return (
     <AuthProvider>
+      <Toaster />
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<LoginPage />} />

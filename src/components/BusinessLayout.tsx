@@ -12,14 +12,14 @@ const tabs = [
 export function BusinessLayout({ children }: { children: ReactNode }) {
   return (
     <div className="flex flex-col gap-4 pb-6">
-      <nav className="flex gap-1 overflow-x-auto rounded-lg border border-zinc-700 bg-zinc-800 p-1">
+      <nav className="flex gap-1 overflow-x-auto rounded-lg border border-border bg-muted p-1">
         {tabs.map((tab) => (
           <NavLink
             key={tab.to}
             to={tab.to}
             className={({ isActive }) =>
               `whitespace-nowrap rounded-md px-4 py-1.5 text-sm font-medium transition ${
-                isActive ? 'bg-emerald-600 text-white' : 'text-zinc-400 hover:text-zinc-200'
+                isActive ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
               }`
             }
           >

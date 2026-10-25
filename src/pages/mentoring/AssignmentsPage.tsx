@@ -1,10 +1,19 @@
 import { useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
+import { Users } from 'lucide-react'
 import { supabase } from '../../lib/supabaseClient'
 import { useStudents } from '../../lib/useStudents'
 import { useProfiles } from '../../lib/useProfiles'
 import { useMentorAssignments } from '../../lib/useMentorAssignments'
 import { Section, Field, inputClass } from '../../components/BusinessFormControls'
+import { Button } from '../../components/ui/button'
+import { Badge } from '../../components/ui/badge'
+import { Card } from '../../components/ui/card'
+import { Alert, AlertDescription } from '../../components/ui/alert'
+import { Skeleton } from '../../components/ui/skeleton'
+import { Table, TableBody, TableCell, TableHeader, TableRow } from '../../components/ui/table'
+import { toast } from '../../components/ui/toast'
+import { EmptyState } from '../../components/EmptyState'
 
 function todayDateInput(): string {
   const d = new Date()
@@ -50,6 +59,7 @@ export function AssignmentsPage() {
     if (deactivateError) {
       setSaving(false)
       setActionError(deactivateError.message)
+      toast.add({ title: 'שגיאה', description: deactivateError.message, type: 'error' })
       return
     }
 
@@ -64,8 +74,10 @@ export function AssignmentsPage() {
     setSaving(false)
     if (error) {
       setActionError(error.message)
+      toast.add({ title: 'שגיאה', description: error.message, type: 'error' })
       return
     }
+    toast.add({ title: 'השיוך נוצר', type: 'success' })
     setStudentId('')
     setMentorUserId('')
     setValidFrom(todayDateInput())
@@ -73,12 +85,16 @@ export function AssignmentsPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      <h2 className="text-xl font-bold">שיוכי מנטורים</h2>
+      <h2 className="font-heading text-xl font-semibold">שיוכי מנטורים</h2>
 
-      {error && <p className="rounded-lg bg-red-950/50 px-3 py-2 text-sm text-red-400">{error}</p>}
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription className="text-destructive">{error}</AlertDescription>
+        </Alert>
+      )}
 
       <Section title="שיוך חדש">
-        <p className="text-xs text-zinc-500">
+        <p className="text-xs text-muted-foreground">
           שיוך חדש לתלמיד שכבר יש לו מנטור פעיל יסיים אוטומטית את השיוך הקודם (יישאר בהיסטוריה, לא יימחק).
         </p>
         <form onSubmit={handleAssign} className="flex flex-col gap-4">
@@ -118,66 +134,63 @@ export function AssignmentsPage() {
               />
             </Field>
           </div>
-          <button
-            type="submit"
-            disabled={saving}
-            className="self-start rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-50"
-          >
+          <Button type="submit" disabled={saving} className="self-start">
             {saving ? 'משייך...' : '+ שיוך'}
-          </button>
+          </Button>
         </form>
         {mentors.length === 0 && !loadingProfiles && (
-          <p className="text-xs text-zinc-500">
+          <p className="text-xs text-muted-foreground">
             אין עדיין אף משתמש עם גישת מנטורינג — אפשר להעניק דרך לשונית "ניהול" בפלטפורמת הביצועים.
           </p>
         )}
       </Section>
 
       {loading ? (
-        <p className="py-10 text-center text-zinc-500">טוען שיוכים...</p>
+        <div className="flex flex-col gap-2">
+          <Skeleton className="h-48 w-full rounded-xl" />
+        </div>
       ) : sortedAssignments.length === 0 ? (
-        <p className="py-10 text-center text-zinc-500">אין שיוכים להצגה.</p>
+        <EmptyState icon={Users} title="אין שיוכים להצגה" description="שייכ/י מנטור לתלמיד בטופס שמעל." />
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-zinc-800">
-          <table className="w-full min-w-[520px] text-sm">
-            <thead className="bg-zinc-900 text-zinc-400">
-              <tr>
-                <th className="px-3 py-2 text-right font-medium">תלמיד</th>
-                <th className="px-3 py-2 text-right font-medium">מנטור</th>
-                <th className="px-3 py-2 text-right font-medium">מתאריך</th>
-                <th className="px-3 py-2 text-right font-medium">עד תאריך</th>
-                <th className="px-3 py-2 text-right font-medium">סטטוס</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-800">
+        <Card className="overflow-hidden p-0 shadow-sm">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <th className="h-10 px-2 text-start align-middle font-medium text-muted-foreground">תלמיד</th>
+                <th className="h-10 px-2 text-start align-middle font-medium text-muted-foreground">מנטור</th>
+                <th className="h-10 px-2 text-start align-middle font-medium text-muted-foreground">מתאריך</th>
+                <th className="h-10 px-2 text-start align-middle font-medium text-muted-foreground">עד תאריך</th>
+                <th className="h-10 px-2 text-start align-middle font-medium text-muted-foreground">סטטוס</th>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {sortedAssignments.map((a) => (
-                <tr key={a.id} className="hover:bg-zinc-900/60">
-                  <td className="px-3 py-2 font-medium text-zinc-200">
+                <TableRow key={a.id}>
+                  <TableCell className="font-medium text-foreground">
                     {studentById.get(a.student_id)?.display_name ?? 'לא ידוע'}
-                  </td>
-                  <td className="px-3 py-2 text-zinc-300" dir="ltr">
+                  </TableCell>
+                  <TableCell className="text-foreground" dir="ltr">
                     {mentorById.get(a.mentor_user_id)?.email ?? 'לא ידוע'}
-                  </td>
-                  <td className="px-3 py-2 text-zinc-300" dir="ltr">
+                  </TableCell>
+                  <TableCell className="text-foreground" dir="ltr">
                     {a.valid_from}
-                  </td>
-                  <td className="px-3 py-2 text-zinc-300" dir="ltr">
+                  </TableCell>
+                  <TableCell className="text-foreground" dir="ltr">
                     {a.valid_to ?? '—'}
-                  </td>
-                  <td className="px-3 py-2">
-                    <span
-                      className={`rounded px-1.5 py-0.5 text-xs font-semibold ${
-                        a.active ? 'bg-emerald-950 text-emerald-400' : 'bg-zinc-800 text-zinc-400'
-                      }`}
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      variant="outline"
+                      className={`border-transparent ${a.active ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}
                     >
                       {a.active ? 'פעיל' : 'היסטורי'}
-                    </span>
-                  </td>
-                </tr>
+                    </Badge>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </TableBody>
+          </Table>
+        </Card>
       )}
     </div>
   )

@@ -1,43 +1,96 @@
 import { useMemo, useState } from 'react'
-import type { ReactNode } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
+import { Inbox } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { useTrades } from '../lib/useTrades'
 import { RESULTS } from '../lib/constants'
 import type { TradeResult } from '../types/database.types'
+import { FilterField, filterInputClass, SortHeader } from '../components/BusinessFormControls'
+import { Button } from '../components/ui/button'
+import { Badge } from '../components/ui/badge'
+import { Checkbox } from '../components/ui/checkbox'
+import { Alert, AlertDescription } from '../components/ui/alert'
+import { Skeleton } from '../components/ui/skeleton'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table'
+import { EmptyState } from '../components/EmptyState'
+import { BulkActionBar } from '../components/BulkActionBar'
+import { toast } from '../components/ui/toast'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../components/ui/alert-dialog'
 
 type SortField = 'entry_datetime' | 'pnl_dollars' | 'points'
 type SortDir = 'asc' | 'desc'
 
 const resultClass: Record<TradeResult, string> = {
-  TP1: 'bg-emerald-950 text-emerald-400',
-  TP2: 'bg-emerald-950 text-emerald-400',
-  SL: 'bg-red-950 text-red-400',
-  BE: 'bg-zinc-800 text-zinc-400',
+  TP1: 'bg-primary/10 text-primary',
+  TP2: 'bg-primary/10 text-primary',
+  SL: 'bg-destructive/10 text-destructive',
+  BE: 'bg-muted text-muted-foreground',
 }
+
+type DeleteTarget = { type: 'single'; id: string } | { type: 'bulk'; ids: string[] } | null
 
 export function TradeListPage() {
   const { trades, loading, error: loadError } = useTrades()
   const [deleteError, setDeleteError] = useState<string | null>(null)
-  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
-  const [sortField, setSortField] = useState<SortField>('entry_datetime')
-  const [sortDir, setSortDir] = useState<SortDir>('desc')
-
-  const [resultFilter, setResultFilter] = useState<TradeResult | ''>('')
-  const [fromDate, setFromDate] = useState('')
-  const [toDate, setToDate] = useState('')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const resultFilter = (searchParams.get('result') as TradeResult | null) ?? ''
+  const fromDate = searchParams.get('from') ?? ''
+  const toDate = searchParams.get('to') ?? ''
+  const sortField = (searchParams.get('sort') as SortField | null) ?? 'entry_datetime'
+  const sortDir = (searchParams.get('dir') as SortDir | null) ?? 'desc'
 
   const error = loadError ?? deleteError
 
-  async function handleDelete(id: string) {
-    if (!confirm('למחוק את העסקה? פעולה זו אינה הפיכה.')) return
-    setDeletingId(id)
-    const { error } = await supabase.from('trades').delete().eq('id', id)
-    setDeletingId(null)
+  function updateParams(patch: Record<string, string | null>) {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        for (const [key, value] of Object.entries(patch)) {
+          if (value) next.set(key, value)
+          else next.delete(key)
+        }
+        return next
+      },
+      { replace: true },
+    )
+  }
+
+  async function handleConfirmDelete() {
+    if (!deleteTarget) return
+    const ids = deleteTarget.type === 'single' ? [deleteTarget.id] : deleteTarget.ids
+    setDeleting(true)
+    const { error } = await supabase.from('trades').delete().in('id', ids)
+    setDeleting(false)
+    setDeleteTarget(null)
+
     if (error) {
       setDeleteError(error.message)
+      toast.add({ title: 'שגיאה', description: error.message, type: 'error' })
+      return
     }
+
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      for (const id of ids) next.delete(id)
+      return next
+    })
+    toast.add({
+      title: ids.length > 1 ? `${ids.length} עסקאות נמחקו` : 'העסקה נמחקה',
+      type: 'success',
+    })
   }
 
   const filtered = useMemo(() => {
@@ -68,31 +121,57 @@ export function TradeListPage() {
 
   function toggleSort(field: SortField) {
     if (field === sortField) {
-      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+      updateParams({ dir: sortDir === 'asc' ? 'desc' : 'asc' })
     } else {
-      setSortField(field)
-      setSortDir('desc')
+      updateParams({ sort: field, dir: 'desc' })
     }
+  }
+
+  function toggleSelect(id: string, checked: boolean) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (checked) next.add(id)
+      else next.delete(id)
+      return next
+    })
+  }
+
+  const allVisibleSelected = sorted.length > 0 && sorted.every((t) => selectedIds.has(t.id))
+
+  function toggleSelectAllVisible(checked: boolean) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      for (const t of sorted) {
+        if (checked) next.add(t.id)
+        else next.delete(t.id)
+      }
+      return next
+    })
   }
 
   return (
     <div className="flex flex-col gap-4 pb-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold">עסקאות ({sorted.length})</h2>
-        <Link
-          to="/performance/new"
-          className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-500"
-        >
-          + עסקה חדשה
-        </Link>
+        <h2 className="font-heading text-xl font-semibold">עסקאות ({sorted.length})</h2>
+        <Button render={<Link to="/performance/new" />}>+ עסקה חדשה</Button>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 rounded-xl border border-zinc-800 bg-zinc-900/40 p-3 sm:grid-cols-3">
+      <BulkActionBar count={selectedIds.size} onClear={() => setSelectedIds(new Set())}>
+        <Button
+          variant="destructive"
+          size="sm"
+          onClick={() => setDeleteTarget({ type: 'bulk', ids: Array.from(selectedIds) })}
+        >
+          מחיקת נבחרות
+        </Button>
+      </BulkActionBar>
+
+      <div className="grid grid-cols-2 gap-3 rounded-xl border border-border bg-muted/50 p-3 sm:grid-cols-3">
         <FilterField label="מתאריך">
           <input
             type="date"
             value={fromDate}
-            onChange={(e) => setFromDate(e.target.value)}
+            onChange={(e) => updateParams({ from: e.target.value || null })}
             className={filterInputClass}
           />
         </FilterField>
@@ -100,14 +179,14 @@ export function TradeListPage() {
           <input
             type="date"
             value={toDate}
-            onChange={(e) => setToDate(e.target.value)}
+            onChange={(e) => updateParams({ to: e.target.value || null })}
             className={filterInputClass}
           />
         </FilterField>
         <FilterField label="תוצאה">
           <select
             value={resultFilter}
-            onChange={(e) => setResultFilter(e.target.value as TradeResult | '')}
+            onChange={(e) => updateParams({ result: e.target.value || null })}
             className={filterInputClass}
           >
             <option value="">הכל</option>
@@ -120,137 +199,143 @@ export function TradeListPage() {
         </FilterField>
       </div>
 
-      {error && <p className="rounded-lg bg-red-950/50 px-3 py-2 text-sm text-red-400">{error}</p>}
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription className="text-destructive">{error}</AlertDescription>
+        </Alert>
+      )}
 
       {loading ? (
-        <p className="py-10 text-center text-zinc-500">טוען עסקאות...</p>
+        <div className="flex flex-col gap-2">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} className="h-11 w-full rounded-lg" />
+          ))}
+        </div>
       ) : sorted.length === 0 ? (
-        <p className="py-10 text-center text-zinc-500">אין עסקאות להצגה.</p>
+        <EmptyState
+          icon={Inbox}
+          title="אין עסקאות להצגה"
+          description="התחל/י לתעד את העסקאות שלך כדי לראות כאן נתונים וסטטיסטיקות."
+          action={<Button render={<Link to="/performance/new" />}>+ עסקה ראשונה</Button>}
+        />
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-zinc-800">
-          <table className="w-full min-w-[720px] text-sm">
-            <thead className="bg-zinc-900 text-zinc-400">
-              <tr>
+        <div className="rounded-xl border border-border">
+          <Table className="min-w-[760px]">
+            <TableHeader className="bg-muted/50">
+              <TableRow>
+                <TableHead className="w-10">
+                  <Checkbox
+                    checked={allVisibleSelected}
+                    onCheckedChange={(checked) => toggleSelectAllVisible(checked === true)}
+                    aria-label="בחירת כל העסקאות המוצגות"
+                  />
+                </TableHead>
                 <SortHeader label="תאריך כניסה" field="entry_datetime" current={sortField} dir={sortDir} onClick={toggleSort} />
-                <th className="px-3 py-2 text-right font-medium">כיוון</th>
-                <th className="px-3 py-2 text-right font-medium">מחיר כניסה</th>
-                <th className="px-3 py-2 text-right font-medium">מחיר יציאה</th>
-                <th className="px-3 py-2 text-right font-medium">חוזים</th>
+                <TableHead>כיוון</TableHead>
+                <TableHead>מחיר כניסה</TableHead>
+                <TableHead>מחיר יציאה</TableHead>
+                <TableHead>חוזים</TableHead>
                 <SortHeader label="נקודות" field="points" current={sortField} dir={sortDir} onClick={toggleSort} />
                 <SortHeader label="PnL ($)" field="pnl_dollars" current={sortField} dir={sortDir} onClick={toggleSort} />
-                <th className="px-3 py-2 text-right font-medium">תוצאה</th>
-                <th className="px-3 py-2"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-800">
+                <TableHead>תוצאה</TableHead>
+                <TableHead></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {sorted.map((t) => (
-                <tr key={t.id} className="hover:bg-zinc-900/60">
-                  <td className="px-3 py-2 text-right text-zinc-300" dir="ltr">
+                <TableRow key={t.id} data-state={selectedIds.has(t.id) ? 'selected' : undefined}>
+                  <TableCell>
+                    <Checkbox
+                      checked={selectedIds.has(t.id)}
+                      onCheckedChange={(checked) => toggleSelect(t.id, checked === true)}
+                      aria-label="בחירת עסקה"
+                    />
+                  </TableCell>
+                  <TableCell className="text-foreground" dir="ltr">
                     {new Date(t.entry_datetime).toLocaleString('he-IL', {
                       dateStyle: 'short',
                       timeStyle: 'short',
                     })}
-                  </td>
-                  <td className="px-3 py-2">
-                    <span
-                      className={`rounded px-1.5 py-0.5 text-xs font-semibold ${
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      variant="outline"
+                      className={
                         t.direction === 'Long'
-                          ? 'bg-emerald-950 text-emerald-400'
-                          : 'bg-red-950 text-red-400'
-                      }`}
+                          ? 'border-transparent bg-primary/10 text-primary'
+                          : 'border-transparent bg-destructive/10 text-destructive'
+                      }
                     >
                       {t.direction === 'Long' ? 'לונג' : 'שורט'}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2 text-right text-zinc-300" dir="ltr">
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-foreground" dir="ltr">
                     {t.entry_price ?? '—'}
-                  </td>
-                  <td className="px-3 py-2 text-right text-zinc-300" dir="ltr">
+                  </TableCell>
+                  <TableCell className="text-foreground" dir="ltr">
                     {t.exit_price ?? '—'}
-                  </td>
-                  <td className="px-3 py-2 text-right text-zinc-300" dir="ltr">
+                  </TableCell>
+                  <TableCell className="text-foreground" dir="ltr">
                     {t.position_size}
-                  </td>
-                  <td className="px-3 py-2 text-right text-zinc-300" dir="ltr">
+                  </TableCell>
+                  <TableCell className="text-foreground" dir="ltr">
                     {t.points ?? '—'}
-                  </td>
-                  <td
-                    className={`px-3 py-2 text-right font-medium ${
+                  </TableCell>
+                  <TableCell
+                    className={`font-medium ${
                       (t.pnl_dollars ?? 0) > 0
-                        ? 'text-emerald-400'
+                        ? 'text-primary'
                         : (t.pnl_dollars ?? 0) < 0
-                          ? 'text-red-400'
-                          : 'text-zinc-400'
+                          ? 'text-destructive'
+                          : 'text-muted-foreground'
                     }`}
                     dir="ltr"
                   >
                     {t.pnl_dollars != null ? t.pnl_dollars.toLocaleString('en-US') : '—'}
-                  </td>
-                  <td className="px-3 py-2">
-                    <span className={`rounded px-1.5 py-0.5 text-xs font-semibold ${resultClass[t.result]}`}>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className={`border-transparent ${resultClass[t.result]}`}>
                       {t.result}
-                    </span>
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2 text-left">
-                    <Link
-                      to={`/performance/edit/${t.id}`}
-                      className="ml-2 text-xs text-zinc-400 hover:text-emerald-400"
-                    >
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-left">
+                    <Button variant="ghost" size="sm" render={<Link to={`/performance/edit/${t.id}`} />}>
                       עריכה
-                    </Link>
-                    <button
-                      onClick={() => handleDelete(t.id)}
-                      disabled={deletingId === t.id}
-                      className="text-xs text-zinc-400 hover:text-red-400 disabled:opacity-50"
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setDeleteTarget({ type: 'single', id: t.id })}
+                      className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                     >
                       מחיקה
-                    </button>
-                  </td>
-                </tr>
+                    </Button>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       )}
+
+      <AlertDialog open={deleteTarget !== null} onOpenChange={(open: boolean) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{deleteTarget?.type === 'bulk' ? 'מחיקת עסקאות' : 'מחיקת עסקה'}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget?.type === 'bulk'
+                ? `פעולה זו אינה הפיכה. למחוק ${deleteTarget.ids.length} עסקאות נבחרות?`
+                : 'פעולה זו אינה הפיכה. למחוק את העסקה?'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>ביטול</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" disabled={deleting} onClick={handleConfirmDelete}>
+              מחיקה
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
-  )
-}
-
-const filterInputClass =
-  'w-full rounded-md border border-zinc-700 bg-zinc-800 px-2 py-1.5 text-sm text-zinc-100 outline-none focus:border-emerald-500'
-
-function FilterField({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <label className="flex flex-col gap-1">
-      <span className="text-xs text-zinc-500">{label}</span>
-      {children}
-    </label>
-  )
-}
-
-function SortHeader({
-  label,
-  field,
-  current,
-  dir,
-  onClick,
-}: {
-  label: string
-  field: SortField
-  current: SortField
-  dir: SortDir
-  onClick: (field: SortField) => void
-}) {
-  const active = current === field
-  return (
-    <th className="px-3 py-2 text-right font-medium">
-      <button
-        onClick={() => onClick(field)}
-        className={`flex items-center gap-1 whitespace-nowrap ${active ? 'text-emerald-400' : ''}`}
-      >
-        {label}
-        {active && <span>{dir === 'asc' ? '↑' : '↓'}</span>}
-      </button>
-    </th>
   )
 }

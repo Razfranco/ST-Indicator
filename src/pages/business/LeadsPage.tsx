@@ -1,5 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import { UserPlus } from 'lucide-react'
 import { supabase } from '../../lib/supabaseClient'
 import { useLeads } from '../../lib/useLeads'
 import {
@@ -13,6 +15,26 @@ import {
 } from '../../components/BusinessFormControls'
 import type { SortDir } from '../../components/BusinessFormControls'
 import { Modal } from '../../components/Modal'
+import { Card } from '../../components/ui/card'
+import { Badge } from '../../components/ui/badge'
+import { Button } from '../../components/ui/button'
+import { Alert, AlertDescription } from '../../components/ui/alert'
+import { Skeleton } from '../../components/ui/skeleton'
+import { Checkbox } from '../../components/ui/checkbox'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
+import { EmptyState } from '../../components/EmptyState'
+import { BulkActionBar } from '../../components/BulkActionBar'
+import { toast } from '../../components/ui/toast'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../../components/ui/alert-dialog'
 import { followUpCountdown } from '../../lib/businessStats'
 import type { Lead, LeadStatus } from '../../types/business.types'
 
@@ -30,14 +52,14 @@ const statusLabel: Record<LeadStatus, string> = {
   trial_week: 'שבוע ניסיון',
 }
 const statusClass: Record<LeadStatus, string> = {
-  relevant: 'bg-emerald-950 text-emerald-400',
-  not_relevant: 'bg-zinc-800 text-zinc-400',
-  trial_week: 'bg-sky-950 text-sky-400',
+  relevant: 'bg-primary/10 text-primary',
+  not_relevant: 'bg-muted text-muted-foreground',
+  trial_week: 'bg-sky-100 text-sky-800',
 }
 const statusButtonClass: Record<LeadStatus, string> = {
-  relevant: 'bg-emerald-600 text-white',
-  not_relevant: 'bg-zinc-600 text-white',
-  trial_week: 'bg-sky-600 text-white',
+  relevant: 'bg-primary text-primary-foreground',
+  not_relevant: 'bg-muted-foreground text-white',
+  trial_week: 'bg-sky-700 text-white',
 }
 
 interface FormState {
@@ -97,49 +119,57 @@ function compareNullableTime(a: string | null, b: string | null): number {
 }
 
 function FollowUpCell({ followUpAt }: { followUpAt: string | null }) {
-  if (!followUpAt) return <span className="text-zinc-500">—</span>
+  if (!followUpAt) return <span className="text-muted-foreground">—</span>
   const countdown = followUpCountdown(followUpAt)
   return (
     <div className="flex flex-col gap-0.5">
-      <span className="text-zinc-300" dir="ltr">
+      <span className="text-foreground" dir="ltr">
         {new Date(followUpAt).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' })}
       </span>
-      <span
-        className={`w-fit rounded px-1.5 py-0.5 text-xs font-semibold ${
+      <Badge
+        variant="outline"
+        className={`w-fit border-transparent ${
           countdown.overdue
-            ? 'bg-red-950 text-red-400'
+            ? 'bg-destructive/10 text-destructive'
             : countdown.dueSoon
-              ? 'bg-orange-950 text-orange-400'
-              : 'bg-zinc-800 text-zinc-400'
+              ? 'bg-orange-100 text-orange-800'
+              : 'bg-muted text-muted-foreground'
         }`}
       >
         {countdown.label}
-      </span>
+      </Badge>
     </div>
   )
 }
 
 function LeadCard({
   lead: l,
+  selected,
+  onToggleSelected,
   onEdit,
   onDelete,
   deleting,
 }: {
   lead: Lead
+  selected: boolean
+  onToggleSelected: (checked: boolean) => void
   onEdit: () => void
   onDelete: () => void
   deleting: boolean
 }) {
   return (
-    <div className="flex flex-col gap-2 rounded-xl border border-zinc-800 bg-zinc-900/40 p-3">
-      <div className="flex items-center justify-between gap-2">
-        <span className="font-medium text-zinc-200">{l.full_name}</span>
-        <span className={`rounded px-1.5 py-0.5 text-xs font-semibold ${statusClass[l.status]}`}>
+    <Card className="gap-2 p-3 shadow-sm">
+      <div className="flex items-center justify-between gap-2 px-4">
+        <div className="flex items-center gap-2">
+          <Checkbox checked={selected} onCheckedChange={onToggleSelected} aria-label={`בחירת ${l.full_name}`} />
+          <span className="font-medium text-foreground">{l.full_name}</span>
+        </div>
+        <Badge variant="outline" className={`border-transparent ${statusClass[l.status]}`}>
           {statusLabel[l.status]}
-        </span>
+        </Badge>
       </div>
 
-      <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+      <div className="grid grid-cols-2 gap-x-3 gap-y-2 px-4 text-xs">
         <CardField label="טלפון">
           <span dir="ltr">{l.phone}</span>
         </CardField>
@@ -153,35 +183,37 @@ function LeadCard({
       </div>
 
       {(l.follow_up || l.note) && (
-        <div className="flex flex-col gap-1 border-t border-zinc-800 pt-2 text-xs text-zinc-400">
+        <div className="flex flex-col gap-1 border-t border-border px-4 pt-2 text-xs text-muted-foreground">
           {l.follow_up && (
             <p>
-              <span className="text-zinc-500">הערת פולו-אפ: </span>
+              <span className="text-muted-foreground/80">הערת פולו-אפ: </span>
               {l.follow_up}
             </p>
           )}
           {l.note && (
             <p>
-              <span className="text-zinc-500">הערה: </span>
+              <span className="text-muted-foreground/80">הערה: </span>
               {l.note}
             </p>
           )}
         </div>
       )}
 
-      <div className="flex gap-3 border-t border-zinc-800 pt-2">
-        <button onClick={onEdit} className="text-xs text-zinc-400 hover:text-emerald-400">
+      <div className="flex gap-3 border-t border-border px-4 pt-2">
+        <Button variant="ghost" size="sm" onClick={onEdit} className="text-muted-foreground hover:text-primary">
           עריכה
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={onDelete}
           disabled={deleting}
-          className="text-xs text-zinc-400 hover:text-red-400 disabled:opacity-50"
+          className="text-muted-foreground hover:text-destructive"
         >
           מחיקה
-        </button>
+        </Button>
       </div>
-    </div>
+    </Card>
   )
 }
 
@@ -240,14 +272,14 @@ function LeadFormFields({
           />
         </Field>
         <Field label="סטטוס" required>
-          <div className="flex gap-1 rounded-lg border border-zinc-700 bg-zinc-800 p-1">
+          <div className="flex gap-1 rounded-lg border border-input bg-muted p-1">
             {STATUSES.map((s) => (
               <button
                 key={s}
                 type="button"
                 onClick={() => update('status', s)}
                 className={`flex-1 rounded-md py-2 text-sm font-semibold transition ${
-                  form.status === s ? statusButtonClass[s] : 'text-zinc-400'
+                  form.status === s ? statusButtonClass[s] : 'text-muted-foreground'
                 }`}
               >
                 {statusLabel[s]}
@@ -281,6 +313,7 @@ function LeadFormFields({
 
 export function LeadsPage() {
   const { leads, loading, error: loadError } = useLeads()
+  const [searchParams, setSearchParams] = useSearchParams()
 
   const [form, setForm] = useState<FormState>(emptyForm)
   const [saving, setSaving] = useState(false)
@@ -291,18 +324,34 @@ export function LeadsPage() {
   const [savingEdit, setSavingEdit] = useState(false)
   const [editError, setEditError] = useState<string | null>(null)
 
-  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set())
+  const [pendingDeleteIds, setPendingDeleteIds] = useState<string[] | null>(null)
 
-  const [nameFilter, setNameFilter] = useState('')
-  const [phoneFilter, setPhoneFilter] = useState('')
-  const [sourceFilter, setSourceFilter] = useState('')
-  const [statusFilter, setStatusFilter] = useState<LeadStatus | ''>('')
-  const [followUpFilter, setFollowUpFilter] = useState('')
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
-  const [sortField, setSortField] = useState<SortField | null>(null)
-  const [sortDir, setSortDir] = useState<SortDir>('asc')
+  const [nameFilter, setNameFilter] = useState(searchParams.get('name') ?? '')
+  const [phoneFilter, setPhoneFilter] = useState(searchParams.get('phone') ?? '')
+  const [sourceFilter, setSourceFilter] = useState(searchParams.get('source') ?? '')
+  const [statusFilter, setStatusFilter] = useState<LeadStatus | ''>((searchParams.get('status') as LeadStatus) ?? '')
+  const [followUpFilter, setFollowUpFilter] = useState(searchParams.get('followUp') ?? '')
+
+  const [sortField, setSortField] = useState<SortField | null>((searchParams.get('sort') as SortField) ?? null)
+  const [sortDir, setSortDir] = useState<SortDir>((searchParams.get('dir') as SortDir) ?? 'asc')
 
   const error = loadError ?? actionError
+
+  useEffect(() => {
+    const next = new URLSearchParams()
+    if (nameFilter) next.set('name', nameFilter)
+    if (phoneFilter) next.set('phone', phoneFilter)
+    if (sourceFilter) next.set('source', sourceFilter)
+    if (statusFilter) next.set('status', statusFilter)
+    if (followUpFilter) next.set('followUp', followUpFilter)
+    if (sortField) next.set('sort', sortField)
+    if (sortField) next.set('dir', sortDir)
+    setSearchParams(next, { replace: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nameFilter, phoneFilter, sourceFilter, statusFilter, followUpFilter, sortField, sortDir])
 
   const sourceOptions = useMemo(
     () => Array.from(new Set(leads.map((l) => l.source).filter(Boolean))).sort(),
@@ -356,6 +405,28 @@ export function LeadsPage() {
     }
   }
 
+  function toggleSelected(id: string, checked: boolean) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (checked) next.add(id)
+      else next.delete(id)
+      return next
+    })
+  }
+
+  const allVisibleSelected = sorted.length > 0 && sorted.every((l) => selectedIds.has(l.id))
+
+  function toggleSelectAll(checked: boolean) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      for (const l of sorted) {
+        if (checked) next.add(l.id)
+        else next.delete(l.id)
+      }
+      return next
+    })
+  }
+
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((f) => ({ ...f, [key]: value }))
   }
@@ -384,8 +455,10 @@ export function LeadsPage() {
 
     if (error) {
       setActionError(error.message)
+      toast.add({ title: 'שגיאה בהוספת הליד', description: error.message, type: 'error' })
       return
     }
+    toast.add({ title: 'הליד נוסף בהצלחה', type: 'success' })
     setForm(emptyForm)
   }
 
@@ -400,39 +473,61 @@ export function LeadsPage() {
 
     if (error) {
       setEditError(error.message)
+      toast.add({ title: 'שגיאה בעדכון הליד', description: error.message, type: 'error' })
       return
     }
+    toast.add({ title: 'הליד עודכן בהצלחה', type: 'success' })
     closeEdit()
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm('למחוק את הליד? פעולה זו אינה הפיכה.')) return
-    setDeletingId(id)
-    const { error } = await supabase.from('leads').delete().eq('id', id)
-    setDeletingId(null)
-    if (error) setActionError(error.message)
+  async function handleDeleteMany(ids: string[]) {
+    setDeletingIds(new Set(ids))
+    const { error } = await supabase.from('leads').delete().in('id', ids)
+    setDeletingIds(new Set())
+    setPendingDeleteIds(null)
+    if (error) {
+      toast.add({ title: 'שגיאה במחיקה', description: error.message, type: 'error' })
+      setActionError(error.message)
+      return
+    }
+    toast.add({ title: ids.length > 1 ? `${ids.length} לידים נמחקו` : 'הליד נמחק', type: 'success' })
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      for (const id of ids) next.delete(id)
+      return next
+    })
   }
 
   return (
     <div className="flex flex-col gap-5">
-      <h2 className="text-xl font-bold">לידים ({filtered.length})</h2>
+      <h2 className="font-heading text-xl font-semibold">לידים ({filtered.length})</h2>
 
-      {error && <p className="rounded-lg bg-red-950/50 px-3 py-2 text-sm text-red-400">{error}</p>}
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription className="text-destructive">{error}</AlertDescription>
+        </Alert>
+      )}
 
       <Section title="ליד חדש">
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <LeadFormFields form={form} update={update} />
-          <button
-            type="submit"
-            disabled={saving}
-            className="self-start rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-50"
-          >
+          <Button type="submit" disabled={saving} className="self-start">
             {saving ? 'שומר...' : '+ הוספת ליד'}
-          </button>
+          </Button>
         </form>
       </Section>
 
-      <div className="grid grid-cols-2 gap-3 rounded-xl border border-zinc-800 bg-zinc-900/40 p-3 sm:grid-cols-5">
+      <BulkActionBar count={selectedIds.size} onClear={() => setSelectedIds(new Set())}>
+        <Button
+          variant="destructive"
+          size="sm"
+          onClick={() => setPendingDeleteIds(Array.from(selectedIds))}
+        >
+          מחיקת נבחרים
+        </Button>
+      </BulkActionBar>
+
+      <Card className="grid grid-cols-2 gap-3 p-3 shadow-sm sm:grid-cols-5">
         <FilterField label="שם מלא">
           <input
             type="text"
@@ -486,12 +581,16 @@ export function LeadsPage() {
             className={filterInputClass}
           />
         </FilterField>
-      </div>
+      </Card>
 
       {loading ? (
-        <p className="py-10 text-center text-zinc-500">טוען לידים...</p>
+        <div className="flex flex-col gap-2">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-16 w-full rounded-xl" />
+          ))}
+        </div>
       ) : sorted.length === 0 ? (
-        <p className="py-10 text-center text-zinc-500">אין לידים להצגה.</p>
+        <EmptyState icon={UserPlus} title="אין לידים להצגה" description="נסה/י לשנות את הסינון, או הוסף/י ליד חדש למעלה." />
       ) : (
         <>
           <div className="flex flex-col gap-3 sm:hidden">
@@ -499,19 +598,24 @@ export function LeadsPage() {
               <LeadCard
                 key={l.id}
                 lead={l}
+                selected={selectedIds.has(l.id)}
+                onToggleSelected={(checked) => toggleSelected(l.id, checked)}
                 onEdit={() => openEdit(l)}
-                onDelete={() => handleDelete(l.id)}
-                deleting={deletingId === l.id}
+                onDelete={() => setPendingDeleteIds([l.id])}
+                deleting={deletingIds.has(l.id)}
               />
             ))}
           </div>
 
-          <div className="hidden overflow-x-auto rounded-xl border border-zinc-800 sm:block">
-            <table className="w-full min-w-[980px] text-sm">
-              <thead className="bg-zinc-900 text-zinc-400">
-                <tr>
+          <Card className="hidden overflow-x-auto p-0 shadow-sm sm:block">
+            <Table className="min-w-[1020px]">
+              <TableHeader className="bg-muted">
+                <TableRow>
+                  <TableHead className="w-8">
+                    <Checkbox checked={allVisibleSelected} onCheckedChange={toggleSelectAll} aria-label="בחירת הכל" />
+                  </TableHead>
                   <SortHeader label="שם מלא" field="full_name" current={sortField} dir={sortDir} onClick={toggleSort} />
-                  <th className="px-3 py-2 text-right font-medium">טלפון</th>
+                  <TableHead>טלפון</TableHead>
                   <SortHeader label="מקור" field="source" current={sortField} dir={sortDir} onClick={toggleSort} />
                   <SortHeader label="סטטוס" field="status" current={sortField} dir={sortDir} onClick={toggleSort} />
                   <SortHeader
@@ -528,79 +632,105 @@ export function LeadsPage() {
                     dir={sortDir}
                     onClick={toggleSort}
                   />
-                  <th className="px-3 py-2 text-right font-medium">הערת פולו-אפ</th>
-                  <th className="px-3 py-2 text-right font-medium">הערה</th>
-                  <th className="px-3 py-2"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-800">
+                  <TableHead>הערת פולו-אפ</TableHead>
+                  <TableHead>הערה</TableHead>
+                  <TableHead></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {sorted.map((l) => (
-                  <tr key={l.id} className="hover:bg-zinc-900/60">
-                    <td className="px-3 py-2 font-medium text-zinc-200">{l.full_name}</td>
-                    <td className="px-3 py-2 text-zinc-300" dir="ltr">
+                  <TableRow key={l.id}>
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedIds.has(l.id)}
+                        onCheckedChange={(checked: boolean) => toggleSelected(l.id, checked)}
+                        aria-label={`בחירת ${l.full_name}`}
+                      />
+                    </TableCell>
+                    <TableCell className="font-medium text-foreground">{l.full_name}</TableCell>
+                    <TableCell className="text-muted-foreground" dir="ltr">
                       {l.phone}
-                    </td>
-                    <td className="px-3 py-2 text-zinc-300">{l.source}</td>
-                    <td className="px-3 py-2">
-                      <span className={`rounded px-1.5 py-0.5 text-xs font-semibold ${statusClass[l.status]}`}>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{l.source}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className={`border-transparent ${statusClass[l.status]}`}>
                         {statusLabel[l.status]}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2 text-zinc-300" dir="ltr">
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground" dir="ltr">
                       {l.status === 'trial_week' ? (l.trial_week_expiry ?? '—') : '—'}
-                    </td>
-                    <td className="px-3 py-2">
+                    </TableCell>
+                    <TableCell>
                       <FollowUpCell followUpAt={l.follow_up_at} />
-                    </td>
-                    <td className="px-3 py-2 text-zinc-400">{l.follow_up ?? '—'}</td>
-                    <td className="px-3 py-2 text-zinc-400">{l.note ?? '—'}</td>
-                    <td className="whitespace-nowrap px-3 py-2 text-left">
-                      <button
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{l.follow_up ?? '—'}</TableCell>
+                    <TableCell className="text-muted-foreground">{l.note ?? '—'}</TableCell>
+                    <TableCell className="text-left">
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         onClick={() => openEdit(l)}
-                        className="ml-2 text-xs text-zinc-400 hover:text-emerald-400"
+                        className="me-2 text-muted-foreground hover:text-primary"
                       >
                         עריכה
-                      </button>
-                      <button
-                        onClick={() => handleDelete(l.id)}
-                        disabled={deletingId === l.id}
-                        className="text-xs text-zinc-400 hover:text-red-400 disabled:opacity-50"
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setPendingDeleteIds([l.id])}
+                        disabled={deletingIds.has(l.id)}
+                        className="text-muted-foreground hover:text-destructive"
                       >
                         מחיקה
-                      </button>
-                    </td>
-                  </tr>
+                      </Button>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </TableBody>
+            </Table>
+          </Card>
         </>
       )}
 
       <Modal open={editingLead != null} onClose={closeEdit} title="עריכת ליד">
         <form onSubmit={handleEditSubmit} className="flex flex-col gap-4">
           {editError && (
-            <p className="rounded-lg bg-red-950/50 px-3 py-2 text-sm text-red-400">{editError}</p>
+            <Alert variant="destructive">
+              <AlertDescription className="text-destructive">{editError}</AlertDescription>
+            </Alert>
           )}
           <LeadFormFields form={editForm} update={updateEdit} />
           <div className="flex gap-2">
-            <button
-              type="submit"
-              disabled={savingEdit}
-              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-50"
-            >
+            <Button type="submit" disabled={savingEdit}>
               {savingEdit ? 'שומר...' : 'עדכון ליד'}
-            </button>
-            <button
-              type="button"
-              onClick={closeEdit}
-              className="rounded-lg border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:border-zinc-500"
-            >
+            </Button>
+            <Button type="button" variant="outline" onClick={closeEdit}>
               ביטול
-            </button>
+            </Button>
           </div>
         </form>
       </Modal>
+
+      <AlertDialog open={pendingDeleteIds != null} onOpenChange={(next: boolean) => !next && setPendingDeleteIds(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{(pendingDeleteIds?.length ?? 0) > 1 ? 'מחיקת לידים' : 'מחיקת ליד'}</AlertDialogTitle>
+            <AlertDialogDescription>
+              פעולה זו אינה הפיכה. למחוק{' '}
+              {(pendingDeleteIds?.length ?? 0) > 1 ? `${pendingDeleteIds?.length} לידים נבחרים` : 'את הליד'}?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>ביטול</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => pendingDeleteIds && handleDeleteMany(pendingDeleteIds)}
+            >
+              מחיקה
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

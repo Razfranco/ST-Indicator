@@ -1,18 +1,38 @@
 import { useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
+import { GraduationCap } from 'lucide-react'
 import { supabase } from '../../lib/supabaseClient'
 import { useAuth } from '../../context/AuthContext'
 import { useStudents } from '../../lib/useStudents'
 import { Modal } from '../../components/Modal'
 import { Field, inputClass, FilterField, filterInputClass } from '../../components/BusinessFormControls'
+import { Card } from '../../components/ui/card'
+import { Button } from '../../components/ui/button'
+import { Badge } from '../../components/ui/badge'
+import { Alert, AlertDescription } from '../../components/ui/alert'
+import { Skeleton } from '../../components/ui/skeleton'
+import { Checkbox } from '../../components/ui/checkbox'
+import { toast } from '../../components/ui/toast'
+import { EmptyState } from '../../components/EmptyState'
+import { BulkActionBar } from '../../components/BulkActionBar'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../../components/ui/alert-dialog'
 import type { Student, StudentStatus } from '../../types/mentorship.types'
 
 const STATUSES: StudentStatus[] = ['active', 'paused', 'ended']
 const statusLabel: Record<StudentStatus, string> = { active: 'פעיל', paused: 'מושהה', ended: 'הסתיים' }
 const statusClass: Record<StudentStatus, string> = {
-  active: 'bg-emerald-950 text-emerald-400',
-  paused: 'bg-amber-950 text-amber-400',
-  ended: 'bg-zinc-800 text-zinc-400',
+  active: 'bg-primary/10 text-primary',
+  paused: 'bg-amber-100 text-amber-800',
+  ended: 'bg-muted text-muted-foreground',
 }
 
 interface FormState {
@@ -43,7 +63,12 @@ export function StudentsPage() {
   const [form, setForm] = useState<FormState>(emptyForm)
   const [saving, setSaving] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
+
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false)
+  const [bulkDeleting, setBulkDeleting] = useState(false)
 
   const error = loadError ?? actionError
 
@@ -56,6 +81,21 @@ export function StudentsPage() {
       }),
     [students, nameFilter, statusFilter],
   )
+
+  const allVisibleSelected = filtered.length > 0 && filtered.every((s) => selectedIds.has(s.id))
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function toggleSelectAllVisible() {
+    setSelectedIds(allVisibleSelected ? new Set() : new Set(filtered.map((s) => s.id)))
+  }
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((f) => ({ ...f, [key]: value }))
@@ -97,36 +137,58 @@ export function StudentsPage() {
 
     if (error) {
       setActionError(error.message)
+      toast.add({ title: 'שגיאה', description: error.message, type: 'error' })
       return
     }
+    toast.add({ title: editing ? 'התלמיד עודכן' : 'התלמיד נוסף', type: 'success' })
     closeModal()
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm('למחוק את התלמיד? פעולה זו אינה הפיכה.')) return
+  async function confirmDelete() {
+    if (!confirmDeleteId) return
+    const id = confirmDeleteId
     setDeletingId(id)
     const { error } = await supabase.from('students').delete().eq('id', id)
     setDeletingId(null)
-    if (error) setActionError(error.message)
+    setConfirmDeleteId(null)
+    if (error) {
+      setActionError(error.message)
+      toast.add({ title: 'שגיאה', description: error.message, type: 'error' })
+      return
+    }
+    toast.add({ title: 'התלמיד נמחק', type: 'success' })
+  }
+
+  async function confirmBulkDeleteAction() {
+    const ids = Array.from(selectedIds)
+    if (ids.length === 0) return
+    setBulkDeleting(true)
+    const { error } = await supabase.from('students').delete().in('id', ids)
+    setBulkDeleting(false)
+    setConfirmBulkDelete(false)
+    if (error) {
+      setActionError(error.message)
+      toast.add({ title: 'שגיאה', description: error.message, type: 'error' })
+      return
+    }
+    toast.add({ title: `${ids.length} תלמידים נמחקו`, type: 'success' })
+    setSelectedIds(new Set())
   }
 
   return (
     <div className="flex flex-col gap-5">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold">תלמידים ({filtered.length})</h2>
-        {isAdmin && (
-          <button
-            onClick={openCreate}
-            className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-500"
-          >
-            + תלמיד חדש
-          </button>
-        )}
+        <h2 className="font-heading text-xl font-semibold">תלמידים ({filtered.length})</h2>
+        {isAdmin && <Button onClick={openCreate}>+ תלמיד חדש</Button>}
       </div>
 
-      {error && <p className="rounded-lg bg-red-950/50 px-3 py-2 text-sm text-red-400">{error}</p>}
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription className="text-destructive">{error}</AlertDescription>
+        </Alert>
+      )}
 
-      <div className="grid grid-cols-2 gap-3 rounded-xl border border-zinc-800 bg-zinc-900/40 p-3 sm:grid-cols-3">
+      <Card className="grid grid-cols-2 gap-3 p-3 shadow-sm sm:grid-cols-3">
         <FilterField label="שם">
           <input
             type="text"
@@ -149,46 +211,70 @@ export function StudentsPage() {
             ))}
           </select>
         </FilterField>
-      </div>
+      </Card>
 
       {loading ? (
-        <p className="py-10 text-center text-zinc-500">טוען תלמידים...</p>
+        <div className="flex flex-col gap-2">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className="h-16 w-full rounded-xl" />
+          ))}
+        </div>
       ) : filtered.length === 0 ? (
-        <p className="py-10 text-center text-zinc-500">אין תלמידים להצגה.</p>
+        <EmptyState
+          icon={GraduationCap}
+          title="אין תלמידים להצגה"
+          description={isAdmin ? 'נסה/י לשנות את הסינון, או הוסיפ/י תלמיד ראשון.' : 'נסה/י לשנות את הסינון.'}
+          action={isAdmin ? <Button onClick={openCreate}>+ תלמיד ראשון</Button> : undefined}
+        />
       ) : (
         <div className="flex flex-col gap-2">
+          {isAdmin && (
+            <BulkActionBar count={selectedIds.size} onClear={() => setSelectedIds(new Set())}>
+              <Button variant="destructive" size="sm" onClick={() => setConfirmBulkDelete(true)} disabled={bulkDeleting}>
+                מחיקת {selectedIds.size} תלמידים
+              </Button>
+            </BulkActionBar>
+          )}
+          {isAdmin && (
+            <label className="flex items-center gap-2 px-1 text-xs text-muted-foreground">
+              <Checkbox checked={allVisibleSelected} onCheckedChange={toggleSelectAllVisible} />
+              בחירת הכל
+            </label>
+          )}
           {filtered.map((s) => (
-            <div
-              key={s.id}
-              className="flex items-center justify-between gap-3 rounded-xl border border-zinc-800 bg-zinc-900/40 p-3"
-            >
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium text-zinc-200">{s.display_name}</span>
-                  <span className={`rounded px-1.5 py-0.5 text-xs font-semibold ${statusClass[s.status]}`}>
-                    {statusLabel[s.status]}
-                  </span>
-                </div>
-                <div className="mt-1 flex flex-wrap gap-x-3 text-xs text-zinc-500">
-                  {s.phone && <span dir="ltr">{s.phone}</span>}
-                  {s.notes && <span>{s.notes}</span>}
+            <Card key={s.id} className="flex-row items-center justify-between gap-3 p-3 shadow-sm">
+              <div className="flex min-w-0 items-center gap-3">
+                {isAdmin && <Checkbox checked={selectedIds.has(s.id)} onCheckedChange={() => toggleSelect(s.id)} />}
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-foreground">{s.display_name}</span>
+                    <Badge variant="outline" className={`border-transparent ${statusClass[s.status]}`}>
+                      {statusLabel[s.status]}
+                    </Badge>
+                  </div>
+                  <div className="mt-1 flex flex-wrap gap-x-3 text-xs text-muted-foreground">
+                    {s.phone && <span dir="ltr">{s.phone}</span>}
+                    {s.notes && <span>{s.notes}</span>}
+                  </div>
                 </div>
               </div>
               {isAdmin && (
                 <div className="flex shrink-0 gap-3">
-                  <button onClick={() => openEdit(s)} className="text-xs text-zinc-400 hover:text-emerald-400">
+                  <Button variant="link" size="sm" className="h-auto p-0" onClick={() => openEdit(s)}>
                     עריכה
-                  </button>
-                  <button
-                    onClick={() => handleDelete(s.id)}
+                  </Button>
+                  <Button
+                    variant="link"
+                    size="sm"
+                    className="h-auto p-0 text-destructive"
+                    onClick={() => setConfirmDeleteId(s.id)}
                     disabled={deletingId === s.id}
-                    className="text-xs text-zinc-400 hover:text-red-400 disabled:opacity-50"
                   >
                     מחיקה
-                  </button>
+                  </Button>
                 </div>
               )}
-            </div>
+            </Card>
           ))}
         </div>
       )}
@@ -214,18 +300,16 @@ export function StudentsPage() {
             />
           </Field>
           <Field label="סטטוס" required>
-            <div className="flex gap-1 rounded-lg border border-zinc-700 bg-zinc-800 p-1">
+            <div className="grid grid-cols-3 gap-2">
               {STATUSES.map((s) => (
-                <button
+                <Button
                   key={s}
                   type="button"
+                  variant={form.status === s ? 'default' : 'outline'}
                   onClick={() => update('status', s)}
-                  className={`flex-1 rounded-md py-2 text-sm font-semibold transition ${
-                    form.status === s ? 'bg-emerald-600 text-white' : 'text-zinc-400'
-                  }`}
                 >
                   {statusLabel[s]}
-                </button>
+                </Button>
               ))}
             </div>
           </Field>
@@ -238,23 +322,45 @@ export function StudentsPage() {
             />
           </Field>
           <div className="flex gap-2">
-            <button
-              type="submit"
-              disabled={saving}
-              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-50"
-            >
+            <Button type="submit" disabled={saving}>
               {saving ? 'שומר...' : editing ? 'עדכון' : 'יצירה'}
-            </button>
-            <button
-              type="button"
-              onClick={closeModal}
-              className="rounded-lg border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:border-zinc-500"
-            >
+            </Button>
+            <Button type="button" variant="outline" onClick={closeModal}>
               ביטול
-            </button>
+            </Button>
           </div>
         </form>
       </Modal>
+
+      <AlertDialog open={confirmDeleteId != null} onOpenChange={(next: boolean) => !next && setConfirmDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>מחיקת תלמיד</AlertDialogTitle>
+            <AlertDialogDescription>פעולה זו אינה הפיכה. למחוק את התלמיד?</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>ביטול</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={confirmDelete}>
+              מחיקה
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={confirmBulkDelete} onOpenChange={setConfirmBulkDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>מחיקת {selectedIds.size} תלמידים</AlertDialogTitle>
+            <AlertDialogDescription>פעולה זו אינה הפיכה. למחוק את כל התלמידים שנבחרו?</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>ביטול</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={confirmBulkDeleteAction} disabled={bulkDeleting}>
+              מחיקה
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

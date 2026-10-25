@@ -2,6 +2,11 @@ import { useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useProfiles } from '../lib/useProfiles'
 import { useAuth } from '../context/AuthContext'
+import { Card } from '../components/ui/card'
+import { Badge } from '../components/ui/badge'
+import { Button } from '../components/ui/button'
+import { Alert, AlertDescription } from '../components/ui/alert'
+import { Skeleton } from '../components/ui/skeleton'
 
 export function AdminPage() {
   const { profiles, loading, error } = useProfiles()
@@ -40,7 +45,13 @@ export function AdminPage() {
   }
 
   if (loading) {
-    return <p className="py-10 text-center text-zinc-500">טוען משתמשים...</p>
+    return (
+      <div className="flex flex-col gap-2 pb-6">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Skeleton key={i} className="h-16 w-full rounded-xl" />
+        ))}
+      </div>
+    )
   }
 
   const sorted = [...profiles].sort((a, b) => {
@@ -50,86 +61,81 @@ export function AdminPage() {
 
   return (
     <div className="flex flex-col gap-4 pb-6">
-      <h2 className="text-xl font-bold">ניהול משתמשים</h2>
+      <h2 className="font-heading text-xl font-semibold">ניהול משתמשים</h2>
 
       {(error || actionError) && (
-        <p className="rounded-lg bg-red-950/50 px-3 py-2 text-sm text-red-400">{error ?? actionError}</p>
+        <Alert variant="destructive">
+          <AlertDescription className="text-destructive">{error ?? actionError}</AlertDescription>
+        </Alert>
       )}
 
       {sorted.length === 0 ? (
-        <p className="py-10 text-center text-zinc-500">אין משתמשים להצגה.</p>
+        <p className="py-10 text-center text-muted-foreground">אין משתמשים להצגה.</p>
       ) : (
         <div className="flex flex-col gap-2">
           {sorted.map((p) => (
-            <div
-              key={p.id}
-              className="flex items-center justify-between gap-3 rounded-xl border border-zinc-800 bg-zinc-900/40 p-3"
-            >
+            <Card key={p.id} className="flex-row flex-wrap items-center justify-between gap-3 p-3 shadow-sm">
               <div className="min-w-0">
-                <div className="truncate text-sm font-medium text-zinc-200" dir="ltr">
+                <div className="truncate text-sm font-medium text-foreground" dir="ltr">
                   {p.email}
                 </div>
-                <div className="mt-1 flex items-center gap-2 text-xs">
-                  <span className="text-zinc-500">{p.role === 'admin' ? 'מנהל' : 'משתמש'}</span>
-                  <span
-                    className={`rounded px-1.5 py-0.5 font-semibold ${
-                      p.approved ? 'bg-emerald-950 text-emerald-400' : 'bg-amber-950 text-amber-400'
-                    }`}
+                <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+                  <span className="text-muted-foreground">{p.role === 'admin' ? 'מנהל' : 'משתמש'}</span>
+                  <Badge
+                    variant="outline"
+                    className={
+                      p.approved
+                        ? 'border-transparent bg-primary/10 text-primary'
+                        : 'border-transparent bg-amber-100 text-amber-800'
+                    }
                   >
                     {p.approved ? 'מאושר' : 'ממתין לאישור'}
-                  </span>
+                  </Badge>
                   {p.business_access && (
-                    <span className="rounded bg-sky-950 px-1.5 py-0.5 font-semibold text-sky-400">
+                    <Badge variant="outline" className="border-transparent bg-sky-100 text-sky-800">
                       גישה עסקית
-                    </span>
+                    </Badge>
                   )}
                   {p.mentor_access && (
-                    <span className="rounded bg-violet-950 px-1.5 py-0.5 font-semibold text-violet-400">
+                    <Badge variant="outline" className="border-transparent bg-violet-100 text-violet-800">
                       גישת מנטורינג
-                    </span>
+                    </Badge>
                   )}
-                  {p.id === user?.id && <span className="text-zinc-600">(אתה)</span>}
+                  {p.id === user?.id && <span className="text-muted-foreground/70">(אתה)</span>}
                 </div>
               </div>
 
               {p.id !== user?.id && (
                 <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-                  <button
+                  <Button
+                    variant={p.mentor_access ? 'outline' : 'default'}
+                    size="sm"
                     onClick={() => toggleMentorAccess(p.id, p.mentor_access)}
                     disabled={updatingId === p.id}
-                    className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition disabled:opacity-50 ${
-                      p.mentor_access
-                        ? 'border border-zinc-700 text-zinc-300 hover:border-red-500 hover:text-red-400'
-                        : 'bg-violet-600 text-white hover:bg-violet-500'
-                    }`}
+                    className={p.mentor_access ? '' : 'bg-violet-700 text-white hover:bg-violet-600'}
                   >
                     {p.mentor_access ? 'ביטול גישת מנטורינג' : 'הענקת גישת מנטורינג'}
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    variant={p.business_access ? 'outline' : 'default'}
+                    size="sm"
                     onClick={() => toggleBusinessAccess(p.id, p.business_access)}
                     disabled={updatingId === p.id}
-                    className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition disabled:opacity-50 ${
-                      p.business_access
-                        ? 'border border-zinc-700 text-zinc-300 hover:border-red-500 hover:text-red-400'
-                        : 'bg-sky-600 text-white hover:bg-sky-500'
-                    }`}
+                    className={p.business_access ? '' : 'bg-sky-700 text-white hover:bg-sky-600'}
                   >
                     {p.business_access ? 'ביטול גישה עסקית' : 'הענקת גישה עסקית'}
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    variant={p.approved ? 'outline' : 'default'}
+                    size="sm"
                     onClick={() => toggleApproved(p.id, p.approved)}
                     disabled={updatingId === p.id}
-                    className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition disabled:opacity-50 ${
-                      p.approved
-                        ? 'border border-zinc-700 text-zinc-300 hover:border-red-500 hover:text-red-400'
-                        : 'bg-emerald-600 text-white hover:bg-emerald-500'
-                    }`}
                   >
                     {p.approved ? 'ביטול גישה' : 'אישור גישה'}
-                  </button>
+                  </Button>
                 </div>
               )}
-            </div>
+            </Card>
           ))}
         </div>
       )}

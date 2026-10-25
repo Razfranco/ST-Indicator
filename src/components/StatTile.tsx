@@ -1,9 +1,11 @@
+import { Card } from './ui/card'
+
 type Tone = 'positive' | 'negative' | 'neutral'
 
 function toneClass(tone: Tone): string {
-  if (tone === 'positive') return 'text-emerald-400'
-  if (tone === 'negative') return 'text-red-400'
-  return 'text-zinc-100'
+  if (tone === 'positive') return 'text-primary'
+  if (tone === 'negative') return 'text-destructive'
+  return 'text-foreground'
 }
 
 export function StatTile({
@@ -16,11 +18,13 @@ export function StatTile({
   tone?: Tone
 }) {
   return (
-    <div className="flex flex-col gap-1 rounded-xl border border-zinc-800 bg-zinc-900/40 p-3">
-      <span className="text-xs text-zinc-500">{label}</span>
-      <span className={`text-xl font-semibold ${toneClass(tone)}`} dir="ltr">
-        {value}
-      </span>
-    </div>
+    <Card size="sm" className="gap-1 shadow-sm">
+      <div className="flex flex-col gap-1 px-4">
+        <span className="text-xs text-muted-foreground">{label}</span>
+        <span className={`text-xl font-semibold ${toneClass(tone)}`} dir="ltr">
+          {value}
+        </span>
+      </div>
+    </Card>
   )
 }

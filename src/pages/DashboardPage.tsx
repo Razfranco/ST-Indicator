@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   Bar,
   BarChart,
@@ -26,12 +27,16 @@ import {
 } from '../lib/stats'
 import { formatCurrency, formatPercent, formatProfitFactor } from '../lib/format'
 import { StatTile } from '../components/StatTile'
+import { Card } from '../components/ui/card'
+import { Button } from '../components/ui/button'
+import { Alert, AlertDescription } from '../components/ui/alert'
+import { Skeleton } from '../components/ui/skeleton'
 
-const COLOR_WIN = '#34d399'
-const COLOR_LOSS = '#f87171'
-const COLOR_BE = '#71717a'
-const AXIS_COLOR = '#71717a'
-const GRID_COLOR = '#27272a'
+const COLOR_WIN = '#1b7a43'
+const COLOR_LOSS = '#b3261e'
+const COLOR_BE = '#8a8275'
+const AXIS_COLOR = '#a39a8a'
+const GRID_COLOR = '#e4ddce'
 
 const SCOPE_LABELS: Record<DashboardScope, string> = {
   monthly: 'חודשי',
@@ -52,10 +57,10 @@ const WEEKDAY_LABELS = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש']
 
 function tooltipStyle() {
   return {
-    backgroundColor: '#18181b',
-    border: '1px solid #27272a',
+    backgroundColor: '#ffffff',
+    border: '1px solid #e4ddce',
     borderRadius: 8,
-    color: '#f4f4f5',
+    color: '#1c1b19',
     fontSize: 12,
     direction: 'rtl' as const,
   }
@@ -63,10 +68,29 @@ function tooltipStyle() {
 
 export function DashboardPage() {
   const { trades, loading, error } = useTrades()
-  const [scope, setScope] = useState<DashboardScope>('monthly')
+  const [searchParams, setSearchParams] = useSearchParams()
   const now = new Date()
-  const [calYear, setCalYear] = useState(now.getFullYear())
-  const [calMonth, setCalMonth] = useState(now.getMonth())
+  const scope = (searchParams.get('scope') as DashboardScope | null) ?? 'monthly'
+  const calYear = searchParams.get('y') ? Number(searchParams.get('y')) : now.getFullYear()
+  const calMonth = searchParams.get('m') != null ? Number(searchParams.get('m')) : now.getMonth()
+
+  function updateParams(patch: Record<string, string | null>) {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        for (const [key, value] of Object.entries(patch)) {
+          if (value) next.set(key, value)
+          else next.delete(key)
+        }
+        return next
+      },
+      { replace: true },
+    )
+  }
+
+  function setScope(next: DashboardScope) {
+    updateParams({ scope: next })
+  }
 
   const scopedTrades = useMemo(() => {
     if (scope === 'monthly') {
@@ -107,35 +131,47 @@ export function DashboardPage() {
 
   function goMonth(delta: number) {
     const d = new Date(calYear, calMonth + delta, 1)
-    setCalYear(d.getFullYear())
-    setCalMonth(d.getMonth())
+    updateParams({ y: String(d.getFullYear()), m: String(d.getMonth()) })
   }
 
   if (loading) {
-    return <p className="py-10 text-center text-zinc-500">טוען נתונים...</p>
+    return (
+      <div className="flex flex-col gap-5 pb-6">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <Skeleton key={i} className="h-16 w-full rounded-xl" />
+          ))}
+        </div>
+        <Skeleton className="h-72 w-full rounded-xl" />
+      </div>
+    )
   }
 
   if (error) {
-    return <p className="rounded-lg bg-red-950/50 px-3 py-2 text-sm text-red-400">{error}</p>
+    return (
+      <Alert variant="destructive">
+        <AlertDescription className="text-destructive">{error}</AlertDescription>
+      </Alert>
+    )
   }
 
   return (
     <div className="flex flex-col gap-5 pb-6">
-      <h2 className="text-xl font-bold">
+      <h2 className="font-heading text-xl font-semibold">
         דשבורד
         {scope === 'monthly' && (
-          <span className="mr-2 text-sm font-normal text-zinc-500">— {calendar.monthLabel}</span>
+          <span className="mr-2 text-sm font-normal text-muted-foreground">— {calendar.monthLabel}</span>
         )}
       </h2>
 
-      <div className="flex gap-1 self-start rounded-lg border border-zinc-700 bg-zinc-800 p-1">
+      <div className="flex gap-1 self-start rounded-lg border border-border bg-muted p-1">
         {(['monthly', 'weekly', 'daily', 'total'] as DashboardScope[]).map((s) => (
           <button
             key={s}
             type="button"
             onClick={() => setScope(s)}
             className={`rounded-md px-4 py-1.5 text-sm font-medium transition ${
-              scope === s ? 'bg-emerald-600 text-white' : 'text-zinc-400'
+              scope === s ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'
             }`}
           >
             {SCOPE_LABELS[s]}
@@ -160,46 +196,38 @@ export function DashboardPage() {
           value={formatPercent(successRate)}
           tone={successRate == null ? 'neutral' : successRate >= 50 ? 'positive' : 'negative'}
         />
-        <div className="flex flex-col gap-1 rounded-xl border border-zinc-800 bg-zinc-900/40 p-3">
-          <span className="text-xs text-zinc-500">מספר עסקאות (מרוויחות / מפסידות / BE)</span>
-          <span className="text-lg font-semibold" dir="ltr">
-            <span className="text-emerald-400">{resultCounts.win}</span>
-            <span className="text-zinc-600"> / </span>
-            <span className="text-red-400">{resultCounts.loss}</span>
-            <span className="text-zinc-600"> / </span>
-            <span className="text-zinc-400">{resultCounts.breakeven}</span>
-          </span>
-        </div>
+        <Card size="sm" className="gap-1 shadow-sm">
+          <div className="flex flex-col gap-1 px-4">
+            <span className="text-xs text-muted-foreground">מספר עסקאות (מרוויחות / מפסידות / BE)</span>
+            <span className="text-lg font-semibold" dir="ltr">
+              <span className="text-primary">{resultCounts.win}</span>
+              <span className="text-muted-foreground/60"> / </span>
+              <span className="text-destructive">{resultCounts.loss}</span>
+              <span className="text-muted-foreground/60"> / </span>
+              <span className="text-muted-foreground">{resultCounts.breakeven}</span>
+            </span>
+          </div>
+        </Card>
         <StatTile label="רווח ממוצע" value={formatCurrency(totals.avgWin)} tone="positive" />
         <StatTile label="הפסד ממוצע" value={formatCurrency(totals.avgLoss)} tone="negative" />
         <StatTile label="מספר עסקאות" value={String(totals.tradeCount)} />
       </div>
 
-      <section className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
+      <Card className="p-4 shadow-sm">
         <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-zinc-400">יומן חודשי</h3>
+          <h3 className="font-heading text-sm font-semibold text-muted-foreground">יומן חודשי</h3>
           <div className="flex items-center gap-2 text-sm">
-            <button
-              type="button"
-              onClick={() => goMonth(-1)}
-              className="rounded-md border border-zinc-700 px-2 py-1 text-zinc-300 hover:border-zinc-500"
-            >
+            <Button type="button" variant="outline" size="sm" onClick={() => goMonth(-1)}>
               ‹ קודם
-            </button>
-            <span className="min-w-[90px] text-center font-medium text-zinc-200">
-              {calendar.monthLabel}
-            </span>
-            <button
-              type="button"
-              onClick={() => goMonth(1)}
-              className="rounded-md border border-zinc-700 px-2 py-1 text-zinc-300 hover:border-zinc-500"
-            >
+            </Button>
+            <span className="min-w-[90px] text-center font-medium text-foreground">{calendar.monthLabel}</span>
+            <Button type="button" variant="outline" size="sm" onClick={() => goMonth(1)}>
               הבא ›
-            </button>
+            </Button>
           </div>
         </div>
 
-        <div className="grid grid-cols-7 gap-1 text-center text-xs text-zinc-500">
+        <div className="grid grid-cols-7 gap-1 text-center text-xs text-muted-foreground">
           {WEEKDAY_LABELS.map((w) => (
             <div key={w} className="py-1">
               {w}
@@ -210,25 +238,25 @@ export function DashboardPage() {
           ))}
           {calendar.cells.map((cell) => {
             const hasTrades = cell.tradeCount > 0
-            const intensity = hasTrades ? 0.25 + 0.6 * (Math.abs(cell.pnl) / maxAbsDayPnl) : 0
+            const intensity = hasTrades ? 0.18 + 0.45 * (Math.abs(cell.pnl) / maxAbsDayPnl) : 0
             const bg = !hasTrades
               ? 'transparent'
               : cell.pnl > 0
-                ? `rgba(52, 211, 153, ${intensity})`
+                ? `rgba(27, 122, 67, ${intensity})`
                 : cell.pnl < 0
-                  ? `rgba(248, 113, 113, ${intensity})`
-                  : 'rgba(113, 113, 122, 0.3)'
+                  ? `rgba(179, 38, 30, ${intensity})`
+                  : 'rgba(138, 130, 117, 0.25)'
             return (
               <div
                 key={cell.dateKey}
-                className="flex aspect-square flex-col items-center justify-center rounded-md border border-zinc-800/60 text-[11px]"
+                className="flex aspect-square flex-col items-center justify-center rounded-md border border-border/60 text-[11px]"
                 style={{ backgroundColor: bg }}
                 title={hasTrades ? `${cell.dateKey}: ${formatCurrency(cell.pnl)}` : cell.dateKey}
               >
-                <span className="text-zinc-400">{cell.dayOfMonth}</span>
+                <span className="text-muted-foreground">{cell.dayOfMonth}</span>
                 {hasTrades && (
                   <span
-                    className={`font-medium ${cell.pnl >= 0 ? 'text-emerald-300' : 'text-red-300'}`}
+                    className={`font-medium ${cell.pnl >= 0 ? 'text-primary' : 'text-destructive'}`}
                     dir="ltr"
                   >
                     {cell.pnl >= 0 ? '+' : ''}
@@ -239,12 +267,14 @@ export function DashboardPage() {
             )
           })}
         </div>
-      </section>
+      </Card>
 
-      <section className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
-        <h3 className="mb-3 text-sm font-semibold text-zinc-400">רווח/הפסד — {SCOPE_LABELS[scope]}</h3>
+      <Card className="p-4 shadow-sm">
+        <h3 className="mb-3 font-heading text-sm font-semibold text-muted-foreground">
+          רווח/הפסד — {SCOPE_LABELS[scope]}
+        </h3>
         {periodPnl.length === 0 ? (
-          <p className="py-6 text-center text-sm text-zinc-500">אין נתונים להצגה</p>
+          <p className="py-6 text-center text-sm text-muted-foreground">אין נתונים להצגה</p>
         ) : (
           <div className="h-64" dir="ltr">
             <ResponsiveContainer width="100%" height="100%">
@@ -265,14 +295,14 @@ export function DashboardPage() {
             </ResponsiveContainer>
           </div>
         )}
-      </section>
+      </Card>
 
-      <section className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
-        <h3 className="mb-3 text-sm font-semibold text-zinc-400">
+      <Card className="p-4 shadow-sm">
+        <h3 className="mb-3 font-heading text-sm font-semibold text-muted-foreground">
           עסקאות מרוויחות / מפסידות / ברייק-איבן — {SCOPE_LABELS[scope]}
         </h3>
         {periodResults.length === 0 ? (
-          <p className="py-6 text-center text-sm text-zinc-500">אין נתונים להצגה</p>
+          <p className="py-6 text-center text-sm text-muted-foreground">אין נתונים להצגה</p>
         ) : (
           <div className="h-64" dir="ltr">
             <ResponsiveContainer width="100%" height="100%">
@@ -285,7 +315,7 @@ export function DashboardPage() {
                   formatter={(value) =>
                     value === 'win' ? 'מרוויחות' : value === 'loss' ? 'מפסידות' : 'ברייק-איבן'
                   }
-                  wrapperStyle={{ fontSize: 12, color: '#a1a1aa' }}
+                  wrapperStyle={{ fontSize: 12, color: '#6b6459' }}
                 />
                 <Bar dataKey="win" fill={COLOR_WIN} radius={[4, 4, 0, 0]} maxBarSize={20} />
                 <Bar dataKey="loss" fill={COLOR_LOSS} radius={[4, 4, 0, 0]} maxBarSize={20} />
@@ -294,7 +324,7 @@ export function DashboardPage() {
             </ResponsiveContainer>
           </div>
         )}
-      </section>
+      </Card>
     </div>
   )
 }

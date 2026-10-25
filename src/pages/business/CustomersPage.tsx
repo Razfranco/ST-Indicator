@@ -1,18 +1,26 @@
-import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
+import { Users } from 'lucide-react'
 import { useCustomers } from '../../lib/useCustomers'
 import { useCustomerBillings } from '../../lib/useCustomerBillings'
 import { getCustomerAlerts, getEffectiveStatus, daysUntil } from '../../lib/businessStats'
 import { FilterField, filterInputClass, SortHeader, CardField } from '../../components/BusinessFormControls'
 import type { SortDir } from '../../components/BusinessFormControls'
 import { StatTile } from '../../components/StatTile'
+import { Card } from '../../components/ui/card'
+import { Badge } from '../../components/ui/badge'
+import { Button } from '../../components/ui/button'
+import { Alert, AlertDescription } from '../../components/ui/alert'
+import { Skeleton } from '../../components/ui/skeleton'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
+import { EmptyState } from '../../components/EmptyState'
 import type { Customer, CustomerEffectiveStatus } from '../../types/business.types'
 
 const statusClass: Record<CustomerEffectiveStatus, string> = {
-  active: 'bg-emerald-950 text-emerald-400',
-  paused: 'bg-amber-950 text-amber-400',
-  cancelled: 'bg-red-950 text-red-400',
-  expired: 'bg-rose-950 text-rose-400',
+  active: 'bg-primary/10 text-primary',
+  paused: 'bg-amber-100 text-amber-800',
+  cancelled: 'bg-destructive/10 text-destructive',
+  expired: 'bg-rose-100 text-rose-800',
 }
 
 const statusLabel: Record<CustomerEffectiveStatus, string> = {
@@ -31,27 +39,46 @@ type SortField = 'full_name' | 'status' | 'plan' | 'period' | 'subscription_end_
 /** צבע שם המסלול לפי סוג המסלול (טקסט חופשי, הכלה case-insensitive בעברית/אנגלית) */
 function planColorClass(plan: string): string {
   const p = plan.toLowerCase()
-  if (p.includes('גולד') || p.includes('gold')) return 'text-amber-400'
-  if (p.includes('סילבר') || p.includes('silver')) return 'text-gray-300'
-  if (p.includes('פלטינום') || p.includes('platinum')) return 'text-cyan-400'
-  return 'text-zinc-300'
+  if (p.includes('גולד') || p.includes('gold')) return 'text-amber-700'
+  if (p.includes('סילבר') || p.includes('silver')) return 'text-stone-600'
+  if (p.includes('פלטינום') || p.includes('platinum')) return 'text-sky-700'
+  return 'text-foreground'
 }
 
 export function CustomersPage() {
   const { customers, loading, error } = useCustomers()
   const { billings } = useCustomerBillings()
+  const [searchParams, setSearchParams] = useSearchParams()
 
-  const [nameFilter, setNameFilter] = useState('')
-  const [statusFilter, setStatusFilter] = useState<CustomerEffectiveStatus | ''>('')
-  const [planFilter, setPlanFilter] = useState('')
-  const [periodFilter, setPeriodFilter] = useState('')
-  const [mentorFilter, setMentorFilter] = useState('')
-  const [fromDate, setFromDate] = useState('')
-  const [toDate, setToDate] = useState('')
-  const [alertFilter, setAlertFilter] = useState<AlertFilter>('')
+  const [nameFilter, setNameFilter] = useState(searchParams.get('name') ?? '')
+  const [statusFilter, setStatusFilter] = useState<CustomerEffectiveStatus | ''>(
+    (searchParams.get('status') as CustomerEffectiveStatus | '') ?? '',
+  )
+  const [planFilter, setPlanFilter] = useState(searchParams.get('plan') ?? '')
+  const [periodFilter, setPeriodFilter] = useState(searchParams.get('period') ?? '')
+  const [mentorFilter, setMentorFilter] = useState(searchParams.get('mentor') ?? '')
+  const [fromDate, setFromDate] = useState(searchParams.get('from') ?? '')
+  const [toDate, setToDate] = useState(searchParams.get('to') ?? '')
+  const [alertFilter, setAlertFilter] = useState<AlertFilter>((searchParams.get('alert') as AlertFilter) ?? '')
 
-  const [sortField, setSortField] = useState<SortField | null>(null)
-  const [sortDir, setSortDir] = useState<SortDir>('asc')
+  const [sortField, setSortField] = useState<SortField | null>((searchParams.get('sort') as SortField) ?? null)
+  const [sortDir, setSortDir] = useState<SortDir>((searchParams.get('dir') as SortDir) ?? 'asc')
+
+  useEffect(() => {
+    const next = new URLSearchParams()
+    if (nameFilter) next.set('name', nameFilter)
+    if (statusFilter) next.set('status', statusFilter)
+    if (planFilter) next.set('plan', planFilter)
+    if (periodFilter) next.set('period', periodFilter)
+    if (mentorFilter) next.set('mentor', mentorFilter)
+    if (fromDate) next.set('from', fromDate)
+    if (toDate) next.set('to', toDate)
+    if (alertFilter) next.set('alert', alertFilter)
+    if (sortField) next.set('sort', sortField)
+    if (sortField) next.set('dir', sortDir)
+    setSearchParams(next, { replace: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nameFilter, statusFilter, planFilter, periodFilter, mentorFilter, fromDate, toDate, alertFilter, sortField, sortDir])
 
   const activeCount = useMemo(
     () => customers.filter((c) => getEffectiveStatus(c) === 'active').length,
@@ -141,13 +168,8 @@ export function CustomersPage() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold">לקוחות</h2>
-        <Link
-          to="/business/customers/new"
-          className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-500"
-        >
-          + לקוח חדש
-        </Link>
+        <h2 className="font-heading text-xl font-semibold">לקוחות</h2>
+        <Button render={<Link to="/business/customers/new" />}>+ לקוח חדש</Button>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
@@ -155,9 +177,13 @@ export function CustomersPage() {
         <StatTile label="מנוי פג" value={String(expiredCount)} tone={expiredCount > 0 ? 'negative' : 'neutral'} />
       </div>
 
-      {error && <p className="rounded-lg bg-red-950/50 px-3 py-2 text-sm text-red-400">{error}</p>}
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription className="text-destructive">{error}</AlertDescription>
+        </Alert>
+      )}
 
-      <div className="grid grid-cols-2 gap-3 rounded-xl border border-zinc-800 bg-zinc-900/40 p-3 sm:grid-cols-4">
+      <Card className="grid grid-cols-2 gap-3 p-3 shadow-sm sm:grid-cols-4">
         <FilterField label="שם מלא">
           <input
             type="text"
@@ -245,12 +271,21 @@ export function CustomersPage() {
             <option value="none">רק בלי התראה</option>
           </select>
         </FilterField>
-      </div>
+      </Card>
 
       {loading ? (
-        <p className="py-10 text-center text-zinc-500">טוען לקוחות...</p>
+        <div className="flex flex-col gap-2">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-16 w-full rounded-xl" />
+          ))}
+        </div>
       ) : sorted.length === 0 ? (
-        <p className="py-10 text-center text-zinc-500">אין לקוחות להצגה.</p>
+        <EmptyState
+          icon={Users}
+          title="אין לקוחות להצגה"
+          description="נסה/י לשנות את הסינון, או הוסף/י לקוח ראשון."
+          action={<Button render={<Link to="/business/customers/new" />}>+ לקוח ראשון</Button>}
+        />
       ) : (
         <>
           <div className="flex flex-col gap-3 sm:hidden">
@@ -259,13 +294,13 @@ export function CustomersPage() {
             ))}
           </div>
 
-          <div className="hidden overflow-x-auto rounded-xl border border-zinc-800 sm:block">
-            <table className="w-full min-w-[760px] text-sm">
-              <thead className="bg-zinc-900 text-zinc-400">
-                <tr>
+          <Card className="hidden overflow-x-auto p-0 shadow-sm sm:block">
+            <Table className="min-w-[800px]">
+              <TableHeader className="bg-muted">
+                <TableRow>
                   <SortHeader label="שם מלא" field="full_name" current={sortField} dir={sortDir} onClick={toggleSort} />
                   <SortHeader label="סטטוס" field="status" current={sortField} dir={sortDir} onClick={toggleSort} />
-                  <th className="px-3 py-2 text-right font-medium">טלפון</th>
+                  <TableHead>טלפון</TableHead>
                   <SortHeader label="מסלול" field="plan" current={sortField} dir={sortDir} onClick={toggleSort} />
                   <SortHeader label="תקופה" field="period" current={sortField} dir={sortDir} onClick={toggleSort} />
                   <SortHeader
@@ -283,66 +318,62 @@ export function CustomersPage() {
                     onClick={toggleSort}
                   />
                   <SortHeader label="מנטור" field="mentor" current={sortField} dir={sortDir} onClick={toggleSort} />
-                  <th className="px-3 py-2 text-right font-medium">התראות</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-800">
+                  <TableHead>התראות</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {sorted.map(({ customer: c, alerts, days, effectiveStatus }) => {
                   const hasAlert = alerts.expiringSoon || alerts.billingDueSoon
                   return (
-                    <tr
+                    <TableRow
                       key={c.id}
-                      className={`cursor-pointer hover:bg-zinc-900/60 ${
-                        hasAlert ? 'border-r-2 border-orange-500 bg-orange-950/20' : ''
-                      }`}
+                      className={hasAlert ? 'border-e-2 border-e-orange-400 bg-orange-50' : ''}
                     >
-                      <td className="px-3 py-2">
-                        <Link to={`/business/customers/${c.id}/edit`} className="font-medium text-zinc-200">
+                      <TableCell>
+                        <Link to={`/business/customers/${c.id}/edit`} className="font-medium text-foreground">
                           {c.full_name}
                         </Link>
-                      </td>
-                      <td className="px-3 py-2">
-                        <span className={`rounded px-1.5 py-0.5 text-xs font-semibold ${statusClass[effectiveStatus]}`}>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={`border-transparent ${statusClass[effectiveStatus]}`}>
                           {statusLabel[effectiveStatus]}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2 text-zinc-300" dir="ltr">
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground" dir="ltr">
                         {c.phone}
-                      </td>
-                      <td className={`px-3 py-2 font-medium ${planColorClass(c.plan)}`}>{c.plan}</td>
-                      <td className="px-3 py-2 text-zinc-300">{c.period}</td>
-                      <td className="px-3 py-2 text-zinc-300" dir="ltr">
+                      </TableCell>
+                      <TableCell className={`font-medium ${planColorClass(c.plan)}`}>{c.plan}</TableCell>
+                      <TableCell className="text-muted-foreground">{c.period}</TableCell>
+                      <TableCell className="text-muted-foreground" dir="ltr">
                         {c.subscription_end_date}
-                      </td>
-                      <td
-                        className={`px-3 py-2 font-medium ${
-                          days <= 7 ? 'text-orange-400' : 'text-zinc-300'
-                        }`}
+                      </TableCell>
+                      <TableCell
+                        className={`font-medium ${days <= 7 ? 'text-orange-600' : 'text-muted-foreground'}`}
                         dir="ltr"
                       >
                         {days}
-                      </td>
-                      <td className="px-3 py-2 text-zinc-300">{c.mentor}</td>
-                      <td className="px-3 py-2">
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">{c.mentor}</TableCell>
+                      <TableCell>
                         <div className="flex flex-wrap gap-1">
                           {alerts.expiringSoon && (
-                            <span className="rounded bg-orange-950 px-1.5 py-0.5 text-xs font-semibold text-orange-400">
+                            <Badge variant="outline" className="border-transparent bg-orange-100 text-orange-800">
                               מנוי מסתיים
-                            </span>
+                            </Badge>
                           )}
                           {alerts.billingDueSoon && (
-                            <span className="rounded bg-amber-950 px-1.5 py-0.5 text-xs font-semibold text-amber-400">
+                            <Badge variant="outline" className="border-transparent bg-amber-100 text-amber-800">
                               חיוב קרוב
-                            </span>
+                            </Badge>
                           )}
                         </div>
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   )
                 })}
-              </tbody>
-            </table>
-          </div>
+              </TableBody>
+            </Table>
+          </Card>
         </>
       )}
     </div>
@@ -362,20 +393,17 @@ function CustomerCard({
 }) {
   const hasAlert = alerts.expiringSoon || alerts.billingDueSoon
   return (
-    <Link
-      to={`/business/customers/${c.id}/edit`}
-      className={`flex flex-col gap-2 rounded-xl border border-zinc-800 bg-zinc-900/40 p-3 ${
-        hasAlert ? 'border-r-2 border-orange-500 bg-orange-950/20' : ''
-      }`}
-    >
-      <div className="flex items-center justify-between gap-2">
-        <span className="font-medium text-zinc-200">{c.full_name}</span>
-        <span className={`rounded px-1.5 py-0.5 text-xs font-semibold ${statusClass[effectiveStatus]}`}>
+    <Card className={`gap-2 p-3 shadow-sm ${hasAlert ? 'border-e-2 border-e-orange-400 bg-orange-50' : ''}`}>
+      <div className="flex items-center justify-between gap-2 px-4">
+        <Link to={`/business/customers/${c.id}/edit`} className="font-medium text-foreground">
+          {c.full_name}
+        </Link>
+        <Badge variant="outline" className={`border-transparent ${statusClass[effectiveStatus]}`}>
           {statusLabel[effectiveStatus]}
-        </span>
+        </Badge>
       </div>
 
-      <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+      <div className="grid grid-cols-2 gap-x-3 gap-y-2 px-4 text-xs">
         <CardField label="טלפון">
           <span dir="ltr">{c.phone}</span>
         </CardField>
@@ -388,26 +416,26 @@ function CustomerCard({
           <span dir="ltr">{c.subscription_end_date}</span>
         </CardField>
         <CardField label="ימים לסיום">
-          <span dir="ltr" className={days <= 7 ? 'text-orange-400' : ''}>
+          <span dir="ltr" className={days <= 7 ? 'text-orange-600' : ''}>
             {days}
           </span>
         </CardField>
       </div>
 
       {hasAlert && (
-        <div className="flex flex-wrap gap-1 border-t border-zinc-800 pt-2">
+        <div className="flex flex-wrap gap-1 border-t border-border px-4 pt-2">
           {alerts.expiringSoon && (
-            <span className="rounded bg-orange-950 px-1.5 py-0.5 text-xs font-semibold text-orange-400">
+            <Badge variant="outline" className="border-transparent bg-orange-100 text-orange-800">
               מנוי מסתיים
-            </span>
+            </Badge>
           )}
           {alerts.billingDueSoon && (
-            <span className="rounded bg-amber-950 px-1.5 py-0.5 text-xs font-semibold text-amber-400">
+            <Badge variant="outline" className="border-transparent bg-amber-100 text-amber-800">
               חיוב קרוב
-            </span>
+            </Badge>
           )}
         </div>
       )}
-    </Link>
+    </Card>
   )
 }
