@@ -18,6 +18,17 @@ import type {
   TreasuryTransactionInsert,
   TreasuryTransactionUpdate,
 } from './business.types'
+import type {
+  MentorAssignment,
+  MentorAssignmentInsert,
+  MentorAssignmentUpdate,
+  MentorshipMeeting,
+  MentorshipMeetingInsert,
+  MentorshipMeetingUpdate,
+  Student,
+  StudentInsert,
+  StudentUpdate,
+} from './mentorship.types'
 
 export type Direction = 'Long' | 'Short'
 export type TradeResult = 'TP1' | 'TP2' | 'SL' | 'BE'
@@ -51,11 +62,12 @@ export type Profile = {
   role: UserRole
   approved: boolean
   business_access: boolean
+  mentor_access: boolean
   created_at: string
 }
 
 export type ProfileInsert = Omit<Profile, 'created_at'> & Partial<Pick<Profile, 'created_at'>>
-export type ProfileUpdate = Partial<Pick<Profile, 'role' | 'approved' | 'business_access'>>
+export type ProfileUpdate = Partial<Pick<Profile, 'role' | 'approved' | 'business_access' | 'mentor_access'>>
 
 export type Database = {
   public: {
@@ -106,6 +118,24 @@ export type Database = {
         Row: FixedExpense
         Insert: FixedExpenseInsert
         Update: FixedExpenseUpdate
+        Relationships: []
+      }
+      students: {
+        Row: Student
+        Insert: StudentInsert
+        Update: StudentUpdate
+        Relationships: []
+      }
+      mentor_assignments: {
+        Row: MentorAssignment
+        Insert: MentorAssignmentInsert
+        Update: MentorAssignmentUpdate
+        Relationships: []
+      }
+      mentorship_meetings: {
+        Row: MentorshipMeeting
+        Insert: MentorshipMeetingInsert
+        Update: MentorshipMeetingUpdate
         Relationships: []
       }
     }

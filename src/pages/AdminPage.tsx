@@ -28,6 +28,17 @@ export function AdminPage() {
     if (error) setActionError(error.message)
   }
 
+  async function toggleMentorAccess(id: string, mentorAccess: boolean) {
+    setUpdatingId(id)
+    setActionError(null)
+    const { error } = await supabase
+      .from('profiles')
+      .update({ mentor_access: !mentorAccess })
+      .eq('id', id)
+    setUpdatingId(null)
+    if (error) setActionError(error.message)
+  }
+
   if (loading) {
     return <p className="py-10 text-center text-zinc-500">טוען משתמשים...</p>
   }
@@ -72,12 +83,28 @@ export function AdminPage() {
                       גישה עסקית
                     </span>
                   )}
+                  {p.mentor_access && (
+                    <span className="rounded bg-violet-950 px-1.5 py-0.5 font-semibold text-violet-400">
+                      גישת מנטורינג
+                    </span>
+                  )}
                   {p.id === user?.id && <span className="text-zinc-600">(אתה)</span>}
                 </div>
               </div>
 
               {p.id !== user?.id && (
-                <div className="flex shrink-0 items-center gap-2">
+                <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                  <button
+                    onClick={() => toggleMentorAccess(p.id, p.mentor_access)}
+                    disabled={updatingId === p.id}
+                    className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition disabled:opacity-50 ${
+                      p.mentor_access
+                        ? 'border border-zinc-700 text-zinc-300 hover:border-red-500 hover:text-red-400'
+                        : 'bg-violet-600 text-white hover:bg-violet-500'
+                    }`}
+                  >
+                    {p.mentor_access ? 'ביטול גישת מנטורינג' : 'הענקת גישת מנטורינג'}
+                  </button>
                   <button
                     onClick={() => toggleBusinessAccess(p.id, p.business_access)}
                     disabled={updatingId === p.id}

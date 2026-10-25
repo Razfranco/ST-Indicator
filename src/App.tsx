@@ -5,9 +5,11 @@ import { AuthProvider, useAuth } from './context/AuthContext'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { AdminRoute } from './components/AdminRoute'
 import { BusinessRoute } from './components/BusinessRoute'
+import { MentoringRoute } from './components/MentoringRoute'
 import { Layout, ListIcon, PlusIcon, ChartIcon, DocIcon, AdminIcon } from './components/Layout'
 import type { NavItem } from './components/Layout'
 import { BusinessLayout } from './components/BusinessLayout'
+import { MentoringLayout } from './components/MentoringLayout'
 import { LoginPage } from './pages/LoginPage'
 import { PlatformSelectPage } from './pages/PlatformSelectPage'
 import { TradeListPage } from './pages/TradeListPage'
@@ -31,6 +33,18 @@ const CashflowPage = lazy(() =>
 )
 const TreasuryPage = lazy(() =>
   import('./pages/business/TreasuryPage').then((m) => ({ default: m.TreasuryPage })),
+)
+const MeetingsPage = lazy(() =>
+  import('./pages/mentoring/MeetingsPage').then((m) => ({ default: m.MeetingsPage })),
+)
+const MeetingFormPage = lazy(() =>
+  import('./pages/mentoring/MeetingFormPage').then((m) => ({ default: m.MeetingFormPage })),
+)
+const MentoringStudentsPage = lazy(() =>
+  import('./pages/mentoring/StudentsPage').then((m) => ({ default: m.StudentsPage })),
+)
+const AssignmentsPage = lazy(() =>
+  import('./pages/mentoring/AssignmentsPage').then((m) => ({ default: m.AssignmentsPage })),
 )
 
 function PageFallback() {
@@ -74,6 +88,21 @@ function businessPage(element: ReactNode) {
           </Suspense>
         </Layout>
       </BusinessRoute>
+    </ProtectedRoute>
+  )
+}
+
+/** מלביש עמוד מנטורינג בהגנות הגישה (מאושר + mentor_access/admin), Layout הראשי, וטאבי המודול */
+function mentoringPage(element: ReactNode) {
+  return (
+    <ProtectedRoute>
+      <MentoringRoute>
+        <Layout navItems={[]}>
+          <Suspense fallback={<PageFallback />}>
+            <MentoringLayout>{element}</MentoringLayout>
+          </Suspense>
+        </Layout>
+      </MentoringRoute>
     </ProtectedRoute>
   )
 }
@@ -133,6 +162,29 @@ function App() {
           <Route path="/business/expenses" element={businessPage(<ExpensesPage />)} />
           <Route path="/business/cashflow" element={businessPage(<CashflowPage />)} />
           <Route path="/business/treasury" element={businessPage(<TreasuryPage />)} />
+          <Route path="/mentoring" element={<Navigate to="/mentoring/meetings" replace />} />
+          <Route path="/mentoring/meetings" element={mentoringPage(<MeetingsPage />)} />
+          <Route path="/mentoring/meetings/new" element={mentoringPage(<MeetingFormPage />)} />
+          <Route path="/mentoring/meetings/:id/edit" element={mentoringPage(<MeetingFormPage />)} />
+          <Route path="/mentoring/students" element={mentoringPage(<MentoringStudentsPage />)} />
+          <Route
+            path="/mentoring/assignments"
+            element={
+              <ProtectedRoute>
+                <MentoringRoute>
+                  <AdminRoute>
+                    <Layout navItems={[]}>
+                      <Suspense fallback={<PageFallback />}>
+                        <MentoringLayout>
+                          <AssignmentsPage />
+                        </MentoringLayout>
+                      </Suspense>
+                    </Layout>
+                  </AdminRoute>
+                </MentoringRoute>
+              </ProtectedRoute>
+            }
+          />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
