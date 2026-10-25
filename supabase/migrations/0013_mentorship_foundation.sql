@@ -25,8 +25,10 @@ as $$
 $$;
 
 -- ----------------------------------------------------------------------------
--- students — תלמידי ליווי (קבוצה נפרדת לחלוטין מ-customers)
+-- יצירת כל הטבלאות קודם (כדי ש-RLS על students יוכל להפנות ל-mentor_assignments)
 -- ----------------------------------------------------------------------------
+
+-- students — תלמידי ליווי (קבוצה נפרדת לחלוטין מ-customers)
 create table if not exists public.students (
   id uuid primary key default gen_random_uuid(),
   created_at timestamptz not null default now(),
@@ -36,6 +38,45 @@ create table if not exists public.students (
   status text not null default 'active' check (status in ('active', 'paused', 'ended')),
   notes text
 );
+
+-- mentor_assignments — מקור האמת למי-מלווה-את-מי (עם היסטוריה, לא נמחק)
+create table if not exists public.mentor_assignments (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+
+  student_id uuid not null references public.students (id) on delete cascade,
+  mentor_user_id uuid not null references auth.users (id) on delete cascade,
+  active boolean not null default true,
+  valid_from date not null default current_date,
+  valid_to date
+);
+
+create index if not exists mentor_assignments_student_id_idx on public.mentor_assignments (student_id);
+create index if not exists mentor_assignments_mentor_user_id_idx on public.mentor_assignments (mentor_user_id);
+
+-- mentorship_meetings — יומן פגישות ליווי
+create table if not exists public.mentorship_meetings (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+
+  student_id uuid not null references public.students (id) on delete cascade,
+  mentor_user_id uuid not null references auth.users (id) on delete cascade,
+  starts_at timestamptz not null,
+  duration_minutes integer not null default 60,
+  channel text not null check (channel in ('whatsapp', 'google_meet', 'other')),
+  status text not null default 'scheduled' check (status in ('scheduled', 'completed', 'cancelled', 'no_show')),
+  topic text,
+  notes text,
+  consent_given boolean not null default false
+);
+
+create index if not exists mentorship_meetings_student_id_idx on public.mentorship_meetings (student_id);
+create index if not exists mentorship_meetings_mentor_user_id_idx on public.mentorship_meetings (mentor_user_id);
+create index if not exists mentorship_meetings_starts_at_idx on public.mentorship_meetings (starts_at);
+
+-- ----------------------------------------------------------------------------
+-- RLS — עכשיו ששלוש הטבלאות קיימות, אפשר להפנות ביניהן בבטחה
+-- ----------------------------------------------------------------------------
 
 alter table public.students enable row level security;
 
@@ -56,23 +97,6 @@ create policy "students_mentor_assigned_only"
     )
   );
 
--- ----------------------------------------------------------------------------
--- mentor_assignments — מקור האמת למי-מלווה-את-מי (עם היסטוריה, לא נמחק)
--- ----------------------------------------------------------------------------
-create table if not exists public.mentor_assignments (
-  id uuid primary key default gen_random_uuid(),
-  created_at timestamptz not null default now(),
-
-  student_id uuid not null references public.students (id) on delete cascade,
-  mentor_user_id uuid not null references auth.users (id) on delete cascade,
-  active boolean not null default true,
-  valid_from date not null default current_date,
-  valid_to date
-);
-
-create index if not exists mentor_assignments_student_id_idx on public.mentor_assignments (student_id);
-create index if not exists mentor_assignments_mentor_user_id_idx on public.mentor_assignments (mentor_user_id);
-
 alter table public.mentor_assignments enable row level security;
 
 drop policy if exists "mentor_assignments_admin_all" on public.mentor_assignments;
@@ -85,28 +109,6 @@ drop policy if exists "mentor_assignments_mentor_own_select" on public.mentor_as
 create policy "mentor_assignments_mentor_own_select"
   on public.mentor_assignments for select
   using (public.is_mentor() and mentor_user_id = auth.uid());
-
--- ----------------------------------------------------------------------------
--- mentorship_meetings — יומן פגישות ליווי
--- ----------------------------------------------------------------------------
-create table if not exists public.mentorship_meetings (
-  id uuid primary key default gen_random_uuid(),
-  created_at timestamptz not null default now(),
-
-  student_id uuid not null references public.students (id) on delete cascade,
-  mentor_user_id uuid not null references auth.users (id) on delete cascade,
-  starts_at timestamptz not null,
-  duration_minutes integer not null default 60,
-  channel text not null check (channel in ('whatsapp', 'google_meet', 'other')),
-  status text not null default 'scheduled' check (status in ('scheduled', 'completed', 'cancelled', 'no_show')),
-  topic text,
-  notes text,
-  consent_given boolean not null default false
-);
-
-create index if not exists mentorship_meetings_student_id_idx on public.mentorship_meetings (student_id);
-create index if not exists mentorship_meetings_mentor_user_id_idx on public.mentorship_meetings (mentor_user_id);
-create index if not exists mentorship_meetings_starts_at_idx on public.mentorship_meetings (starts_at);
 
 alter table public.mentorship_meetings enable row level security;
 
