@@ -4,9 +4,7 @@ import {
   computeDashboardTotals,
   computeProfitFactor,
   computeResultCounts,
-  computeTradeBreakevenRate,
-  computeTradeLossRate,
-  computeTradeWinRate,
+  computeTradeSuccessRate,
   weekRange,
 } from '../lib/stats'
 import { formatCurrency, formatPercent, formatProfitFactor } from '../lib/format'
@@ -65,9 +63,7 @@ export function ReportPage() {
   )
 
   const totals = useMemo(() => computeDashboardTotals(periodTrades), [periodTrades])
-  const winRate = useMemo(() => computeTradeWinRate(periodTrades), [periodTrades])
-  const lossRate = useMemo(() => computeTradeLossRate(periodTrades), [periodTrades])
-  const breakevenRate = useMemo(() => computeTradeBreakevenRate(periodTrades), [periodTrades])
+  const successRate = useMemo(() => computeTradeSuccessRate(periodTrades), [periodTrades])
   const resultCounts = useMemo(() => computeResultCounts(periodTrades), [periodTrades])
   const profitFactor = useMemo(() => computeProfitFactor(periodTrades), [periodTrades])
 
@@ -181,16 +177,11 @@ export function ReportPage() {
             tone={profitFactor == null ? 'neutral' : profitFactor >= 1 ? 'positive' : 'negative'}
           />
           <ReportStat label="אחוז ימים רווחיים" value={formatPercent(totals.profitableDaysPct)} />
-          <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3 text-center">
-            <div className="text-xs text-zinc-500">מרוויחות מול מפסידות מול ברייק-איבן</div>
-            <div className="mt-1 text-lg font-semibold" dir="ltr">
-              <span className="text-emerald-400">{formatPercent(winRate)}</span>
-              <span className="text-zinc-600"> / </span>
-              <span className="text-red-400">{formatPercent(lossRate)}</span>
-              <span className="text-zinc-600"> / </span>
-              <span className="text-zinc-400">{formatPercent(breakevenRate)}</span>
-            </div>
-          </div>
+          <ReportStat
+            label="אחוז רווח/הפסד"
+            value={formatPercent(successRate)}
+            tone={successRate == null ? 'neutral' : successRate >= 50 ? 'positive' : 'negative'}
+          />
           <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3 text-center">
             <div className="text-xs text-zinc-500">מספר עסקאות (מרוויחות / מפסידות / BE)</div>
             <div className="mt-1 text-lg font-semibold" dir="ltr">

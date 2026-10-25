@@ -74,6 +74,13 @@ export function computeTradeWinRate(trades: Trade[]): number | null {
   return (computeResultCounts(trades).win / trades.length) * 100
 }
 
+/** אחוז הצלחה = מרוויחות חלקי (מרוויחות + מפסידות), בלי ברייק-איבן בחישוב */
+export function computeTradeSuccessRate(trades: Trade[]): number | null {
+  const { win, loss } = computeResultCounts(trades)
+  if (win + loss === 0) return null
+  return (win / (win + loss)) * 100
+}
+
 /** אחוז עסקאות מפסידות מתוך כלל העסקאות (SL מתוך הכל) */
 export function computeTradeLossRate(trades: Trade[]): number | null {
   if (trades.length === 0) return null
