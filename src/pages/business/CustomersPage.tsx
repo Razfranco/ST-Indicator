@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
+import { Users } from 'lucide-react'
 import { useCustomers } from '../../lib/useCustomers'
 import { useCustomerBillings } from '../../lib/useCustomerBillings'
 import { getCustomerAlerts, getEffectiveStatus, daysUntil } from '../../lib/businessStats'
@@ -12,6 +13,7 @@ import { Button } from '../../components/ui/button'
 import { Alert, AlertDescription } from '../../components/ui/alert'
 import { Skeleton } from '../../components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
+import { EmptyState } from '../../components/EmptyState'
 import type { Customer, CustomerEffectiveStatus } from '../../types/business.types'
 
 const statusClass: Record<CustomerEffectiveStatus, string> = {
@@ -46,18 +48,37 @@ function planColorClass(plan: string): string {
 export function CustomersPage() {
   const { customers, loading, error } = useCustomers()
   const { billings } = useCustomerBillings()
+  const [searchParams, setSearchParams] = useSearchParams()
 
-  const [nameFilter, setNameFilter] = useState('')
-  const [statusFilter, setStatusFilter] = useState<CustomerEffectiveStatus | ''>('')
-  const [planFilter, setPlanFilter] = useState('')
-  const [periodFilter, setPeriodFilter] = useState('')
-  const [mentorFilter, setMentorFilter] = useState('')
-  const [fromDate, setFromDate] = useState('')
-  const [toDate, setToDate] = useState('')
-  const [alertFilter, setAlertFilter] = useState<AlertFilter>('')
+  const [nameFilter, setNameFilter] = useState(searchParams.get('name') ?? '')
+  const [statusFilter, setStatusFilter] = useState<CustomerEffectiveStatus | ''>(
+    (searchParams.get('status') as CustomerEffectiveStatus | '') ?? '',
+  )
+  const [planFilter, setPlanFilter] = useState(searchParams.get('plan') ?? '')
+  const [periodFilter, setPeriodFilter] = useState(searchParams.get('period') ?? '')
+  const [mentorFilter, setMentorFilter] = useState(searchParams.get('mentor') ?? '')
+  const [fromDate, setFromDate] = useState(searchParams.get('from') ?? '')
+  const [toDate, setToDate] = useState(searchParams.get('to') ?? '')
+  const [alertFilter, setAlertFilter] = useState<AlertFilter>((searchParams.get('alert') as AlertFilter) ?? '')
 
-  const [sortField, setSortField] = useState<SortField | null>(null)
-  const [sortDir, setSortDir] = useState<SortDir>('asc')
+  const [sortField, setSortField] = useState<SortField | null>((searchParams.get('sort') as SortField) ?? null)
+  const [sortDir, setSortDir] = useState<SortDir>((searchParams.get('dir') as SortDir) ?? 'asc')
+
+  useEffect(() => {
+    const next = new URLSearchParams()
+    if (nameFilter) next.set('name', nameFilter)
+    if (statusFilter) next.set('status', statusFilter)
+    if (planFilter) next.set('plan', planFilter)
+    if (periodFilter) next.set('period', periodFilter)
+    if (mentorFilter) next.set('mentor', mentorFilter)
+    if (fromDate) next.set('from', fromDate)
+    if (toDate) next.set('to', toDate)
+    if (alertFilter) next.set('alert', alertFilter)
+    if (sortField) next.set('sort', sortField)
+    if (sortField) next.set('dir', sortDir)
+    setSearchParams(next, { replace: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nameFilter, statusFilter, planFilter, periodFilter, mentorFilter, fromDate, toDate, alertFilter, sortField, sortDir])
 
   const activeCount = useMemo(
     () => customers.filter((c) => getEffectiveStatus(c) === 'active').length,
@@ -259,7 +280,12 @@ export function CustomersPage() {
           ))}
         </div>
       ) : sorted.length === 0 ? (
-        <p className="py-10 text-center text-muted-foreground">אין לקוחות להצגה.</p>
+        <EmptyState
+          icon={Users}
+          title="אין לקוחות להצגה"
+          description="נסה/י לשנות את הסינון, או הוסף/י לקוח ראשון."
+          action={<Button render={<Link to="/business/customers/new" />}>+ לקוח ראשון</Button>}
+        />
       ) : (
         <>
           <div className="flex flex-col gap-3 sm:hidden">
@@ -269,7 +295,7 @@ export function CustomersPage() {
           </div>
 
           <Card className="hidden overflow-x-auto p-0 shadow-sm sm:block">
-            <Table className="min-w-[760px]">
+            <Table className="min-w-[800px]">
               <TableHeader className="bg-muted">
                 <TableRow>
                   <SortHeader label="שם מלא" field="full_name" current={sortField} dir={sortDir} onClick={toggleSort} />
@@ -301,7 +327,7 @@ export function CustomersPage() {
                   return (
                     <TableRow
                       key={c.id}
-                      className={`cursor-pointer ${hasAlert ? 'border-e-2 border-e-orange-400 bg-orange-50' : ''}`}
+                      className={hasAlert ? 'border-e-2 border-e-orange-400 bg-orange-50' : ''}
                     >
                       <TableCell>
                         <Link to={`/business/customers/${c.id}/edit`} className="font-medium text-foreground">
@@ -367,51 +393,49 @@ function CustomerCard({
 }) {
   const hasAlert = alerts.expiringSoon || alerts.billingDueSoon
   return (
-    <Link to={`/business/customers/${c.id}/edit`}>
-      <Card
-        className={`gap-2 p-3 shadow-sm ${hasAlert ? 'border-e-2 border-e-orange-400 bg-orange-50' : ''}`}
-      >
-        <div className="flex items-center justify-between gap-2 px-4">
-          <span className="font-medium text-foreground">{c.full_name}</span>
-          <Badge variant="outline" className={`border-transparent ${statusClass[effectiveStatus]}`}>
-            {statusLabel[effectiveStatus]}
-          </Badge>
-        </div>
+    <Card className={`gap-2 p-3 shadow-sm ${hasAlert ? 'border-e-2 border-e-orange-400 bg-orange-50' : ''}`}>
+      <div className="flex items-center justify-between gap-2 px-4">
+        <Link to={`/business/customers/${c.id}/edit`} className="font-medium text-foreground">
+          {c.full_name}
+        </Link>
+        <Badge variant="outline" className={`border-transparent ${statusClass[effectiveStatus]}`}>
+          {statusLabel[effectiveStatus]}
+        </Badge>
+      </div>
 
-        <div className="grid grid-cols-2 gap-x-3 gap-y-2 px-4 text-xs">
-          <CardField label="טלפון">
-            <span dir="ltr">{c.phone}</span>
-          </CardField>
-          <CardField label="מסלול">
-            <span className={planColorClass(c.plan)}>{c.plan}</span>
-          </CardField>
-          <CardField label="תקופה">{c.period}</CardField>
-          <CardField label="מנטור">{c.mentor}</CardField>
-          <CardField label="סיום מנוי">
-            <span dir="ltr">{c.subscription_end_date}</span>
-          </CardField>
-          <CardField label="ימים לסיום">
-            <span dir="ltr" className={days <= 7 ? 'text-orange-600' : ''}>
-              {days}
-            </span>
-          </CardField>
-        </div>
+      <div className="grid grid-cols-2 gap-x-3 gap-y-2 px-4 text-xs">
+        <CardField label="טלפון">
+          <span dir="ltr">{c.phone}</span>
+        </CardField>
+        <CardField label="מסלול">
+          <span className={planColorClass(c.plan)}>{c.plan}</span>
+        </CardField>
+        <CardField label="תקופה">{c.period}</CardField>
+        <CardField label="מנטור">{c.mentor}</CardField>
+        <CardField label="סיום מנוי">
+          <span dir="ltr">{c.subscription_end_date}</span>
+        </CardField>
+        <CardField label="ימים לסיום">
+          <span dir="ltr" className={days <= 7 ? 'text-orange-600' : ''}>
+            {days}
+          </span>
+        </CardField>
+      </div>
 
-        {hasAlert && (
-          <div className="flex flex-wrap gap-1 border-t border-border px-4 pt-2">
-            {alerts.expiringSoon && (
-              <Badge variant="outline" className="border-transparent bg-orange-100 text-orange-800">
-                מנוי מסתיים
-              </Badge>
-            )}
-            {alerts.billingDueSoon && (
-              <Badge variant="outline" className="border-transparent bg-amber-100 text-amber-800">
-                חיוב קרוב
-              </Badge>
-            )}
-          </div>
-        )}
-      </Card>
-    </Link>
+      {hasAlert && (
+        <div className="flex flex-wrap gap-1 border-t border-border px-4 pt-2">
+          {alerts.expiringSoon && (
+            <Badge variant="outline" className="border-transparent bg-orange-100 text-orange-800">
+              מנוי מסתיים
+            </Badge>
+          )}
+          {alerts.billingDueSoon && (
+            <Badge variant="outline" className="border-transparent bg-amber-100 text-amber-800">
+              חיוב קרוב
+            </Badge>
+          )}
+        </div>
+      )}
+    </Card>
   )
 }

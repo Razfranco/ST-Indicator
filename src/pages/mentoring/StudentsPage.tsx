@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
+import { GraduationCap } from 'lucide-react'
 import { supabase } from '../../lib/supabaseClient'
 import { useAuth } from '../../context/AuthContext'
 import { useStudents } from '../../lib/useStudents'
@@ -10,6 +11,10 @@ import { Button } from '../../components/ui/button'
 import { Badge } from '../../components/ui/badge'
 import { Alert, AlertDescription } from '../../components/ui/alert'
 import { Skeleton } from '../../components/ui/skeleton'
+import { Checkbox } from '../../components/ui/checkbox'
+import { toast } from '../../components/ui/toast'
+import { EmptyState } from '../../components/EmptyState'
+import { BulkActionBar } from '../../components/BulkActionBar'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -61,6 +66,10 @@ export function StudentsPage() {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
 
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false)
+  const [bulkDeleting, setBulkDeleting] = useState(false)
+
   const error = loadError ?? actionError
 
   const filtered = useMemo(
@@ -72,6 +81,21 @@ export function StudentsPage() {
       }),
     [students, nameFilter, statusFilter],
   )
+
+  const allVisibleSelected = filtered.length > 0 && filtered.every((s) => selectedIds.has(s.id))
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function toggleSelectAllVisible() {
+    setSelectedIds(allVisibleSelected ? new Set() : new Set(filtered.map((s) => s.id)))
+  }
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((f) => ({ ...f, [key]: value }))
@@ -113,8 +137,10 @@ export function StudentsPage() {
 
     if (error) {
       setActionError(error.message)
+      toast.add({ title: 'שגיאה', description: error.message, type: 'error' })
       return
     }
+    toast.add({ title: editing ? 'התלמיד עודכן' : 'התלמיד נוסף', type: 'success' })
     closeModal()
   }
 
@@ -125,7 +151,28 @@ export function StudentsPage() {
     const { error } = await supabase.from('students').delete().eq('id', id)
     setDeletingId(null)
     setConfirmDeleteId(null)
-    if (error) setActionError(error.message)
+    if (error) {
+      setActionError(error.message)
+      toast.add({ title: 'שגיאה', description: error.message, type: 'error' })
+      return
+    }
+    toast.add({ title: 'התלמיד נמחק', type: 'success' })
+  }
+
+  async function confirmBulkDeleteAction() {
+    const ids = Array.from(selectedIds)
+    if (ids.length === 0) return
+    setBulkDeleting(true)
+    const { error } = await supabase.from('students').delete().in('id', ids)
+    setBulkDeleting(false)
+    setConfirmBulkDelete(false)
+    if (error) {
+      setActionError(error.message)
+      toast.add({ title: 'שגיאה', description: error.message, type: 'error' })
+      return
+    }
+    toast.add({ title: `${ids.length} תלמידים נמחקו`, type: 'success' })
+    setSelectedIds(new Set())
   }
 
   return (
@@ -173,21 +220,42 @@ export function StudentsPage() {
           ))}
         </div>
       ) : filtered.length === 0 ? (
-        <p className="py-10 text-center text-muted-foreground">אין תלמידים להצגה.</p>
+        <EmptyState
+          icon={GraduationCap}
+          title="אין תלמידים להצגה"
+          description={isAdmin ? 'נסה/י לשנות את הסינון, או הוסיפ/י תלמיד ראשון.' : 'נסה/י לשנות את הסינון.'}
+          action={isAdmin ? <Button onClick={openCreate}>+ תלמיד ראשון</Button> : undefined}
+        />
       ) : (
         <div className="flex flex-col gap-2">
+          {isAdmin && (
+            <BulkActionBar count={selectedIds.size} onClear={() => setSelectedIds(new Set())}>
+              <Button variant="destructive" size="sm" onClick={() => setConfirmBulkDelete(true)} disabled={bulkDeleting}>
+                מחיקת {selectedIds.size} תלמידים
+              </Button>
+            </BulkActionBar>
+          )}
+          {isAdmin && (
+            <label className="flex items-center gap-2 px-1 text-xs text-muted-foreground">
+              <Checkbox checked={allVisibleSelected} onCheckedChange={toggleSelectAllVisible} />
+              בחירת הכל
+            </label>
+          )}
           {filtered.map((s) => (
             <Card key={s.id} className="flex-row items-center justify-between gap-3 p-3 shadow-sm">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium text-foreground">{s.display_name}</span>
-                  <Badge variant="outline" className={`border-transparent ${statusClass[s.status]}`}>
-                    {statusLabel[s.status]}
-                  </Badge>
-                </div>
-                <div className="mt-1 flex flex-wrap gap-x-3 text-xs text-muted-foreground">
-                  {s.phone && <span dir="ltr">{s.phone}</span>}
-                  {s.notes && <span>{s.notes}</span>}
+              <div className="flex min-w-0 items-center gap-3">
+                {isAdmin && <Checkbox checked={selectedIds.has(s.id)} onCheckedChange={() => toggleSelect(s.id)} />}
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-foreground">{s.display_name}</span>
+                    <Badge variant="outline" className={`border-transparent ${statusClass[s.status]}`}>
+                      {statusLabel[s.status]}
+                    </Badge>
+                  </div>
+                  <div className="mt-1 flex flex-wrap gap-x-3 text-xs text-muted-foreground">
+                    {s.phone && <span dir="ltr">{s.phone}</span>}
+                    {s.notes && <span>{s.notes}</span>}
+                  </div>
                 </div>
               </div>
               {isAdmin && (
@@ -273,6 +341,21 @@ export function StudentsPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>ביטול</AlertDialogCancel>
             <AlertDialogAction variant="destructive" onClick={confirmDelete}>
+              מחיקה
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={confirmBulkDelete} onOpenChange={setConfirmBulkDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>מחיקת {selectedIds.size} תלמידים</AlertDialogTitle>
+            <AlertDialogDescription>פעולה זו אינה הפיכה. למחוק את כל התלמידים שנבחרו?</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>ביטול</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={confirmBulkDeleteAction} disabled={bulkDeleting}>
               מחיקה
             </AlertDialogAction>
           </AlertDialogFooter>

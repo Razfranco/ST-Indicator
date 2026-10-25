@@ -1,5 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import { Receipt } from 'lucide-react'
 import { supabase } from '../../lib/supabaseClient'
 import { useExpenses } from '../../lib/useExpenses'
 import { useFixedExpenses } from '../../lib/useFixedExpenses'
@@ -9,7 +11,12 @@ import { Section, Field, inputClass } from '../../components/BusinessFormControl
 import { Button } from '../../components/ui/button'
 import { Alert, AlertDescription } from '../../components/ui/alert'
 import { Card } from '../../components/ui/card'
+import { Skeleton } from '../../components/ui/skeleton'
+import { Checkbox } from '../../components/ui/checkbox'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
+import { EmptyState } from '../../components/EmptyState'
+import { BulkActionBar } from '../../components/BulkActionBar'
+import { toast } from '../../components/ui/toast'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -77,29 +84,39 @@ function toFixedForm(expense: FixedExpense): FixedFormState {
   }
 }
 
-type PendingDelete = { kind: 'variable' | 'fixed'; id: string }
+type PendingDelete = { kind: 'variable' | 'fixed'; ids: string[] }
 
 export function ExpensesPage() {
   const { expenses, loading, error: loadError } = useExpenses()
   const { fixedExpenses, loading: loadingFixed, error: loadFixedError } = useFixedExpenses()
+  const [searchParams, setSearchParams] = useSearchParams()
 
-  const [filterMonth, setFilterMonth] = useState(currentMonthKey())
+  const [filterMonth, setFilterMonth] = useState(searchParams.get('month') ?? currentMonthKey())
 
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<FormState>(emptyForm)
   const [saving, setSaving] = useState(false)
-  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set())
   const [actionError, setActionError] = useState<string | null>(null)
 
   const [editingFixedId, setEditingFixedId] = useState<string | null>(null)
   const [fixedForm, setFixedForm] = useState<FixedFormState>(emptyFixedForm)
   const [savingFixed, setSavingFixed] = useState(false)
-  const [deletingFixedId, setDeletingFixedId] = useState<string | null>(null)
   const [fixedActionError, setFixedActionError] = useState<string | null>(null)
 
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null)
 
+  const [selectedVariableIds, setSelectedVariableIds] = useState<Set<string>>(new Set())
+  const [selectedFixedIds, setSelectedFixedIds] = useState<Set<string>>(new Set())
+
   const error = loadError ?? actionError ?? loadFixedError ?? fixedActionError
+
+  useEffect(() => {
+    const next = new URLSearchParams()
+    if (filterMonth && filterMonth !== currentMonthKey()) next.set('month', filterMonth)
+    setSearchParams(next, { replace: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterMonth])
 
   const filtered = useMemo(
     () => expenses.filter((e) => monthKeyOf(e.expense_month) === filterMonth),
@@ -167,17 +184,11 @@ export function ExpensesPage() {
 
     if (error) {
       setActionError(error.message)
+      toast.add({ title: 'שגיאה בשמירת ההוצאה', description: error.message, type: 'error' })
       return
     }
+    toast.add({ title: editingId ? 'ההוצאה עודכנה בהצלחה' : 'ההוצאה נוספה בהצלחה', type: 'success' })
     cancelEdit()
-  }
-
-  async function handleDelete(id: string) {
-    setDeletingId(id)
-    const { error } = await supabase.from('additional_expenses').delete().eq('id', id)
-    setDeletingId(null)
-    setPendingDelete(null)
-    if (error) setActionError(error.message)
   }
 
   function updateFixed<K extends keyof FixedFormState>(key: K, value: FixedFormState[K]) {
@@ -216,23 +227,88 @@ export function ExpensesPage() {
 
     if (error) {
       setFixedActionError(error.message)
+      toast.add({ title: 'שגיאה בשמירת ההוצאה הקבועה', description: error.message, type: 'error' })
       return
     }
+    toast.add({ title: editingFixedId ? 'ההוצאה הקבועה עודכנה בהצלחה' : 'ההוצאה הקבועה נוספה בהצלחה', type: 'success' })
     cancelEditFixed()
   }
 
-  async function handleDeleteFixed(id: string) {
-    setDeletingFixedId(id)
-    const { error } = await supabase.from('fixed_expenses').delete().eq('id', id)
-    setDeletingFixedId(null)
+  async function confirmPendingDelete() {
+    if (!pendingDelete) return
+    const { kind, ids } = pendingDelete
+    const table = kind === 'fixed' ? 'fixed_expenses' : 'additional_expenses'
+
+    setDeletingIds(new Set(ids))
+    const { error } = await supabase.from(table).delete().in('id', ids)
+    setDeletingIds(new Set())
     setPendingDelete(null)
-    if (error) setFixedActionError(error.message)
+
+    if (error) {
+      toast.add({ title: 'שגיאה במחיקה', description: error.message, type: 'error' })
+      if (kind === 'fixed') setFixedActionError(error.message)
+      else setActionError(error.message)
+      return
+    }
+
+    toast.add({
+      title: ids.length > 1 ? `${ids.length} הוצאות נמחקו` : 'ההוצאה נמחקה',
+      type: 'success',
+    })
+
+    if (kind === 'fixed') {
+      setSelectedFixedIds((prev) => {
+        const next = new Set(prev)
+        for (const id of ids) next.delete(id)
+        return next
+      })
+    } else {
+      setSelectedVariableIds((prev) => {
+        const next = new Set(prev)
+        for (const id of ids) next.delete(id)
+        return next
+      })
+    }
   }
 
-  function confirmPendingDelete() {
-    if (!pendingDelete) return
-    if (pendingDelete.kind === 'fixed') handleDeleteFixed(pendingDelete.id)
-    else handleDelete(pendingDelete.id)
+  function toggleFixedSelected(id: string, checked: boolean) {
+    setSelectedFixedIds((prev) => {
+      const next = new Set(prev)
+      if (checked) next.add(id)
+      else next.delete(id)
+      return next
+    })
+  }
+  const allFixedSelected = fixedExpenses.length > 0 && fixedExpenses.every((fe) => selectedFixedIds.has(fe.id))
+  function toggleAllFixedSelected(checked: boolean) {
+    setSelectedFixedIds((prev) => {
+      const next = new Set(prev)
+      for (const fe of fixedExpenses) {
+        if (checked) next.add(fe.id)
+        else next.delete(fe.id)
+      }
+      return next
+    })
+  }
+
+  function toggleVariableSelected(id: string, checked: boolean) {
+    setSelectedVariableIds((prev) => {
+      const next = new Set(prev)
+      if (checked) next.add(id)
+      else next.delete(id)
+      return next
+    })
+  }
+  const allVariableSelected = filtered.length > 0 && filtered.every((e) => selectedVariableIds.has(e.id))
+  function toggleAllVariableSelected(checked: boolean) {
+    setSelectedVariableIds((prev) => {
+      const next = new Set(prev)
+      for (const e of filtered) {
+        if (checked) next.add(e.id)
+        else next.delete(e.id)
+      }
+      return next
+    })
   }
 
   return (
@@ -315,11 +391,28 @@ export function ExpensesPage() {
           </div>
         </form>
 
-        {!loadingFixed && fixedExpenses.length > 0 && (
+        <BulkActionBar count={selectedFixedIds.size} onClear={() => setSelectedFixedIds(new Set())}>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => setPendingDelete({ kind: 'fixed', ids: Array.from(selectedFixedIds) })}
+          >
+            מחיקת נבחרים
+          </Button>
+        </BulkActionBar>
+
+        {loadingFixed ? (
+          <Skeleton className="h-32 w-full rounded-lg" />
+        ) : fixedExpenses.length === 0 ? (
+          <EmptyState icon={Receipt} title="אין הוצאות קבועות" description="הוסף/י הוצאה קבועה בטופס שלמעלה." />
+        ) : (
           <div className="overflow-x-auto rounded-lg border border-border">
-            <Table className="min-w-[560px]">
+            <Table className="min-w-[600px]">
               <TableHeader className="bg-muted">
                 <TableRow>
+                  <TableHead className="w-8">
+                    <Checkbox checked={allFixedSelected} onCheckedChange={toggleAllFixedSelected} aria-label="בחירת הכל" />
+                  </TableHead>
                   <TableHead>הוצאה</TableHead>
                   <TableHead>סכום</TableHead>
                   <TableHead>תדירות</TableHead>
@@ -331,6 +424,13 @@ export function ExpensesPage() {
               <TableBody>
                 {fixedExpenses.map((fe) => (
                   <TableRow key={fe.id}>
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedFixedIds.has(fe.id)}
+                        onCheckedChange={(checked: boolean) => toggleFixedSelected(fe.id, checked)}
+                        aria-label={`בחירת ${fe.expense_name}`}
+                      />
+                    </TableCell>
                     <TableCell className="font-medium text-foreground">{fe.expense_name}</TableCell>
                     <TableCell className="text-destructive" dir="ltr">
                       {formatILS(fe.amount)}
@@ -352,8 +452,8 @@ export function ExpensesPage() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => setPendingDelete({ kind: 'fixed', id: fe.id })}
-                        disabled={deletingFixedId === fe.id}
+                        onClick={() => setPendingDelete({ kind: 'fixed', ids: [fe.id] })}
+                        disabled={deletingIds.has(fe.id)}
                         className="text-muted-foreground hover:text-destructive"
                       >
                         מחיקה
@@ -468,15 +568,28 @@ export function ExpensesPage() {
         </div>
       )}
 
+      <BulkActionBar count={selectedVariableIds.size} onClear={() => setSelectedVariableIds(new Set())}>
+        <Button
+          variant="destructive"
+          size="sm"
+          onClick={() => setPendingDelete({ kind: 'variable', ids: Array.from(selectedVariableIds) })}
+        >
+          מחיקת נבחרים
+        </Button>
+      </BulkActionBar>
+
       {loading ? (
-        <p className="py-10 text-center text-muted-foreground">טוען הוצאות...</p>
+        <Skeleton className="h-32 w-full rounded-xl" />
       ) : filtered.length === 0 ? (
-        <p className="py-10 text-center text-muted-foreground">אין הוצאות משתנות להצגה בחודש זה.</p>
+        <EmptyState icon={Receipt} title="אין הוצאות משתנות להצגה בחודש זה" description="הוסף/י הוצאה משתנה בטופס שלמעלה." />
       ) : (
         <div className="overflow-x-auto rounded-xl border border-border">
-          <Table className="min-w-[520px]">
+          <Table className="min-w-[560px]">
             <TableHeader className="bg-muted">
               <TableRow>
+                <TableHead className="w-8">
+                  <Checkbox checked={allVariableSelected} onCheckedChange={toggleAllVariableSelected} aria-label="בחירת הכל" />
+                </TableHead>
                 <TableHead>הוצאה משתנה (החודש)</TableHead>
                 <TableHead>סכום</TableHead>
                 <TableHead>הערה</TableHead>
@@ -486,6 +599,13 @@ export function ExpensesPage() {
             <TableBody>
               {filtered.map((e) => (
                 <TableRow key={e.id}>
+                  <TableCell>
+                    <Checkbox
+                      checked={selectedVariableIds.has(e.id)}
+                      onCheckedChange={(checked: boolean) => toggleVariableSelected(e.id, checked)}
+                      aria-label={`בחירת ${e.expense_name}`}
+                    />
+                  </TableCell>
                   <TableCell className="font-medium text-foreground">{e.expense_name}</TableCell>
                   <TableCell className="text-destructive" dir="ltr">
                     {formatILS(e.amount)}
@@ -503,8 +623,8 @@ export function ExpensesPage() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => setPendingDelete({ kind: 'variable', id: e.id })}
-                      disabled={deletingId === e.id}
+                      onClick={() => setPendingDelete({ kind: 'variable', ids: [e.id] })}
+                      disabled={deletingIds.has(e.id)}
                       className="text-muted-foreground hover:text-destructive"
                     >
                       מחיקה
@@ -520,8 +640,11 @@ export function ExpensesPage() {
       <AlertDialog open={pendingDelete != null} onOpenChange={(next: boolean) => !next && setPendingDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>מחיקת הוצאה</AlertDialogTitle>
-            <AlertDialogDescription>פעולה זו אינה הפיכה. למחוק את ההוצאה?</AlertDialogDescription>
+            <AlertDialogTitle>{(pendingDelete?.ids.length ?? 0) > 1 ? 'מחיקת הוצאות' : 'מחיקת הוצאה'}</AlertDialogTitle>
+            <AlertDialogDescription>
+              פעולה זו אינה הפיכה. למחוק{' '}
+              {(pendingDelete?.ids.length ?? 0) > 1 ? `${pendingDelete?.ids.length} הוצאות נבחרות` : 'את ההוצאה'}?
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>ביטול</AlertDialogCancel>

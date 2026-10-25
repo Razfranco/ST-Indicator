@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
+import { Inbox } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { useTrades } from '../lib/useTrades'
 import { RESULTS } from '../lib/constants'
@@ -7,9 +8,13 @@ import type { TradeResult } from '../types/database.types'
 import { FilterField, filterInputClass, SortHeader } from '../components/BusinessFormControls'
 import { Button } from '../components/ui/button'
 import { Badge } from '../components/ui/badge'
+import { Checkbox } from '../components/ui/checkbox'
 import { Alert, AlertDescription } from '../components/ui/alert'
 import { Skeleton } from '../components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table'
+import { EmptyState } from '../components/EmptyState'
+import { BulkActionBar } from '../components/BulkActionBar'
+import { toast } from '../components/ui/toast'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,29 +36,61 @@ const resultClass: Record<TradeResult, string> = {
   BE: 'bg-muted text-muted-foreground',
 }
 
+type DeleteTarget = { type: 'single'; id: string } | { type: 'bulk'; ids: string[] } | null
+
 export function TradeListPage() {
   const { trades, loading, error: loadError } = useTrades()
   const [deleteError, setDeleteError] = useState<string | null>(null)
-  const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
-  const [sortField, setSortField] = useState<SortField>('entry_datetime')
-  const [sortDir, setSortDir] = useState<SortDir>('desc')
-
-  const [resultFilter, setResultFilter] = useState<TradeResult | ''>('')
-  const [fromDate, setFromDate] = useState('')
-  const [toDate, setToDate] = useState('')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const resultFilter = (searchParams.get('result') as TradeResult | null) ?? ''
+  const fromDate = searchParams.get('from') ?? ''
+  const toDate = searchParams.get('to') ?? ''
+  const sortField = (searchParams.get('sort') as SortField | null) ?? 'entry_datetime'
+  const sortDir = (searchParams.get('dir') as SortDir | null) ?? 'desc'
 
   const error = loadError ?? deleteError
 
-  async function handleDelete(id: string) {
-    setDeletingId(id)
-    const { error } = await supabase.from('trades').delete().eq('id', id)
-    setDeletingId(null)
-    setConfirmDeleteId(null)
+  function updateParams(patch: Record<string, string | null>) {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        for (const [key, value] of Object.entries(patch)) {
+          if (value) next.set(key, value)
+          else next.delete(key)
+        }
+        return next
+      },
+      { replace: true },
+    )
+  }
+
+  async function handleConfirmDelete() {
+    if (!deleteTarget) return
+    const ids = deleteTarget.type === 'single' ? [deleteTarget.id] : deleteTarget.ids
+    setDeleting(true)
+    const { error } = await supabase.from('trades').delete().in('id', ids)
+    setDeleting(false)
+    setDeleteTarget(null)
+
     if (error) {
       setDeleteError(error.message)
+      toast.add({ title: 'שגיאה', description: error.message, type: 'error' })
+      return
     }
+
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      for (const id of ids) next.delete(id)
+      return next
+    })
+    toast.add({
+      title: ids.length > 1 ? `${ids.length} עסקאות נמחקו` : 'העסקה נמחקה',
+      type: 'success',
+    })
   }
 
   const filtered = useMemo(() => {
@@ -84,11 +121,32 @@ export function TradeListPage() {
 
   function toggleSort(field: SortField) {
     if (field === sortField) {
-      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+      updateParams({ dir: sortDir === 'asc' ? 'desc' : 'asc' })
     } else {
-      setSortField(field)
-      setSortDir('desc')
+      updateParams({ sort: field, dir: 'desc' })
     }
+  }
+
+  function toggleSelect(id: string, checked: boolean) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (checked) next.add(id)
+      else next.delete(id)
+      return next
+    })
+  }
+
+  const allVisibleSelected = sorted.length > 0 && sorted.every((t) => selectedIds.has(t.id))
+
+  function toggleSelectAllVisible(checked: boolean) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      for (const t of sorted) {
+        if (checked) next.add(t.id)
+        else next.delete(t.id)
+      }
+      return next
+    })
   }
 
   return (
@@ -98,12 +156,22 @@ export function TradeListPage() {
         <Button render={<Link to="/performance/new" />}>+ עסקה חדשה</Button>
       </div>
 
+      <BulkActionBar count={selectedIds.size} onClear={() => setSelectedIds(new Set())}>
+        <Button
+          variant="destructive"
+          size="sm"
+          onClick={() => setDeleteTarget({ type: 'bulk', ids: Array.from(selectedIds) })}
+        >
+          מחיקת נבחרות
+        </Button>
+      </BulkActionBar>
+
       <div className="grid grid-cols-2 gap-3 rounded-xl border border-border bg-muted/50 p-3 sm:grid-cols-3">
         <FilterField label="מתאריך">
           <input
             type="date"
             value={fromDate}
-            onChange={(e) => setFromDate(e.target.value)}
+            onChange={(e) => updateParams({ from: e.target.value || null })}
             className={filterInputClass}
           />
         </FilterField>
@@ -111,14 +179,14 @@ export function TradeListPage() {
           <input
             type="date"
             value={toDate}
-            onChange={(e) => setToDate(e.target.value)}
+            onChange={(e) => updateParams({ to: e.target.value || null })}
             className={filterInputClass}
           />
         </FilterField>
         <FilterField label="תוצאה">
           <select
             value={resultFilter}
-            onChange={(e) => setResultFilter(e.target.value as TradeResult | '')}
+            onChange={(e) => updateParams({ result: e.target.value || null })}
             className={filterInputClass}
           >
             <option value="">הכל</option>
@@ -144,12 +212,24 @@ export function TradeListPage() {
           ))}
         </div>
       ) : sorted.length === 0 ? (
-        <p className="py-10 text-center text-muted-foreground">אין עסקאות להצגה.</p>
+        <EmptyState
+          icon={Inbox}
+          title="אין עסקאות להצגה"
+          description="התחל/י לתעד את העסקאות שלך כדי לראות כאן נתונים וסטטיסטיקות."
+          action={<Button render={<Link to="/performance/new" />}>+ עסקה ראשונה</Button>}
+        />
       ) : (
         <div className="rounded-xl border border-border">
-          <Table className="min-w-[720px]">
+          <Table className="min-w-[760px]">
             <TableHeader className="bg-muted/50">
               <TableRow>
+                <TableHead className="w-10">
+                  <Checkbox
+                    checked={allVisibleSelected}
+                    onCheckedChange={(checked) => toggleSelectAllVisible(checked === true)}
+                    aria-label="בחירת כל העסקאות המוצגות"
+                  />
+                </TableHead>
                 <SortHeader label="תאריך כניסה" field="entry_datetime" current={sortField} dir={sortDir} onClick={toggleSort} />
                 <TableHead>כיוון</TableHead>
                 <TableHead>מחיר כניסה</TableHead>
@@ -163,7 +243,14 @@ export function TradeListPage() {
             </TableHeader>
             <TableBody>
               {sorted.map((t) => (
-                <TableRow key={t.id}>
+                <TableRow key={t.id} data-state={selectedIds.has(t.id) ? 'selected' : undefined}>
+                  <TableCell>
+                    <Checkbox
+                      checked={selectedIds.has(t.id)}
+                      onCheckedChange={(checked) => toggleSelect(t.id, checked === true)}
+                      aria-label="בחירת עסקה"
+                    />
+                  </TableCell>
                   <TableCell className="text-foreground" dir="ltr">
                     {new Date(t.entry_datetime).toLocaleString('he-IL', {
                       dateStyle: 'short',
@@ -218,8 +305,7 @@ export function TradeListPage() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => setConfirmDeleteId(t.id)}
-                      disabled={deletingId === t.id}
+                      onClick={() => setDeleteTarget({ type: 'single', id: t.id })}
                       className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                     >
                       מחיקה
@@ -232,18 +318,19 @@ export function TradeListPage() {
         </div>
       )}
 
-      <AlertDialog open={confirmDeleteId !== null} onOpenChange={(open: boolean) => !open && setConfirmDeleteId(null)}>
+      <AlertDialog open={deleteTarget !== null} onOpenChange={(open: boolean) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>מחיקת עסקה</AlertDialogTitle>
-            <AlertDialogDescription>פעולה זו אינה הפיכה. למחוק את העסקה?</AlertDialogDescription>
+            <AlertDialogTitle>{deleteTarget?.type === 'bulk' ? 'מחיקת עסקאות' : 'מחיקת עסקה'}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget?.type === 'bulk'
+                ? `פעולה זו אינה הפיכה. למחוק ${deleteTarget.ids.length} עסקאות נבחרות?`
+                : 'פעולה זו אינה הפיכה. למחוק את העסקה?'}
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>ביטול</AlertDialogCancel>
-            <AlertDialogAction
-              variant="destructive"
-              onClick={() => confirmDeleteId && handleDelete(confirmDeleteId)}
-            >
+            <AlertDialogAction variant="destructive" disabled={deleting} onClick={handleConfirmDelete}>
               מחיקה
             </AlertDialogAction>
           </AlertDialogFooter>

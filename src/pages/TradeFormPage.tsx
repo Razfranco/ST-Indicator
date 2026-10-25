@@ -10,6 +10,8 @@ import type { Direction, TradeResult } from '../types/database.types'
 import { Section, Field, inputClass } from '../components/BusinessFormControls'
 import { Button } from '../components/ui/button'
 import { Alert, AlertDescription } from '../components/ui/alert'
+import { FormSaveBar } from '../components/FormSaveBar'
+import { toast } from '../components/ui/toast'
 
 type PnlMode = 'auto' | 'manual'
 
@@ -182,17 +184,20 @@ export function TradeFormPage() {
 
     const entry_datetime = combineDateAndTime(form.date, form.entryTime)
     if (!entry_datetime) {
-      setError('יש למלא תאריך ושעת כניסה')
+      const message = 'יש למלא תאריך ושעת כניסה'
+      setError(message)
+      toast.add({ title: 'שגיאה', description: message, type: 'error' })
       return
     }
 
     const finalPnl = form.pnlMode === 'auto' ? computedPnl : Number(form.pnl_dollars)
     if (finalPnl == null || Number.isNaN(finalPnl)) {
-      setError(
+      const message =
         form.pnlMode === 'auto'
           ? 'יש למלא כמות נקודות וכמות חוזים לחישוב הרווח/הפסד'
-          : 'יש למלא רווח/הפסד',
-      )
+          : 'יש למלא רווח/הפסד'
+      setError(message)
+      toast.add({ title: 'שגיאה', description: message, type: 'error' })
       return
     }
 
@@ -222,9 +227,11 @@ export function TradeFormPage() {
 
     if (error) {
       setError(error.message)
+      toast.add({ title: 'שגיאה', description: error.message, type: 'error' })
       return
     }
 
+    toast.add({ title: isEditing ? 'העסקה עודכנה בהצלחה' : 'העסקה נשמרה בהצלחה', type: 'success' })
     navigate('/performance')
   }
 
@@ -454,9 +461,11 @@ export function TradeFormPage() {
         )}
       </Section>
 
-      <Button type="submit" disabled={saving || uploadingScreenshot} size="lg">
-        {saving ? 'שומר...' : isEditing ? 'עדכון עסקה' : 'שמירת עסקה'}
-      </Button>
+      <FormSaveBar>
+        <Button type="submit" disabled={saving || uploadingScreenshot} size="lg" className="w-full sm:w-auto">
+          {saving ? 'שומר...' : isEditing ? 'עדכון עסקה' : 'שמירת עסקה'}
+        </Button>
+      </FormSaveBar>
     </form>
   )
 }

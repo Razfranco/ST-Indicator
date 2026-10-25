@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
+import { Users } from 'lucide-react'
 import { supabase } from '../../lib/supabaseClient'
 import { useStudents } from '../../lib/useStudents'
 import { useProfiles } from '../../lib/useProfiles'
@@ -11,6 +12,8 @@ import { Card } from '../../components/ui/card'
 import { Alert, AlertDescription } from '../../components/ui/alert'
 import { Skeleton } from '../../components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '../../components/ui/table'
+import { toast } from '../../components/ui/toast'
+import { EmptyState } from '../../components/EmptyState'
 
 function todayDateInput(): string {
   const d = new Date()
@@ -56,6 +59,7 @@ export function AssignmentsPage() {
     if (deactivateError) {
       setSaving(false)
       setActionError(deactivateError.message)
+      toast.add({ title: 'שגיאה', description: deactivateError.message, type: 'error' })
       return
     }
 
@@ -70,8 +74,10 @@ export function AssignmentsPage() {
     setSaving(false)
     if (error) {
       setActionError(error.message)
+      toast.add({ title: 'שגיאה', description: error.message, type: 'error' })
       return
     }
+    toast.add({ title: 'השיוך נוצר', type: 'success' })
     setStudentId('')
     setMentorUserId('')
     setValidFrom(todayDateInput())
@@ -144,7 +150,7 @@ export function AssignmentsPage() {
           <Skeleton className="h-48 w-full rounded-xl" />
         </div>
       ) : sortedAssignments.length === 0 ? (
-        <p className="py-10 text-center text-muted-foreground">אין שיוכים להצגה.</p>
+        <EmptyState icon={Users} title="אין שיוכים להצגה" description="שייכ/י מנטור לתלמיד בטופס שמעל." />
       ) : (
         <Card className="overflow-hidden p-0 shadow-sm">
           <Table>

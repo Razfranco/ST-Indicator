@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useTrades } from '../lib/useTrades'
 import {
   computeDashboardTotals,
@@ -14,6 +15,9 @@ import { Badge } from '../components/ui/badge'
 import { Alert, AlertDescription } from '../components/ui/alert'
 import { Skeleton } from '../components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table'
+import { toast } from '../components/ui/toast'
+import { EmptyState } from '../components/EmptyState'
+import { CalendarX } from 'lucide-react'
 
 const resultClass: Record<TradeResult, string> = {
   TP1: 'bg-primary/10 text-primary',
@@ -35,11 +39,27 @@ function formatDateHe(d: Date): string {
 
 export function ReportPage() {
   const { trades, loading, error } = useTrades()
-  const [periodMode, setPeriodMode] = useState<ReportPeriod>('weekly')
-  const [weekOffset, setWeekOffset] = useState(0)
-  const [monthOffset, setMonthOffset] = useState(0)
+  const [searchParams, setSearchParams] = useSearchParams()
   const [exporting, setExporting] = useState(false)
   const printableRef = useRef<HTMLDivElement>(null)
+
+  const periodMode = (searchParams.get('period') as ReportPeriod | null) ?? 'weekly'
+  const weekOffset = searchParams.get('week') ? Number(searchParams.get('week')) : 0
+  const monthOffset = searchParams.get('month') ? Number(searchParams.get('month')) : 0
+
+  function updateParams(patch: Record<string, string | null>) {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        for (const [key, value] of Object.entries(patch)) {
+          if (value) next.set(key, value)
+          else next.delete(key)
+        }
+        return next
+      },
+      { replace: true },
+    )
+  }
 
   const offset = periodMode === 'weekly' ? weekOffset : monthOffset
 
@@ -73,13 +93,13 @@ export function ReportPage() {
   const profitFactor = useMemo(() => computeProfitFactor(periodTrades), [periodTrades])
 
   function goPrev() {
-    if (periodMode === 'weekly') setWeekOffset((w) => w - 1)
-    else setMonthOffset((m) => m - 1)
+    if (periodMode === 'weekly') updateParams({ week: String(weekOffset - 1) })
+    else updateParams({ month: String(monthOffset - 1) })
   }
 
   function goNext() {
-    if (periodMode === 'weekly') setWeekOffset((w) => w + 1)
-    else setMonthOffset((m) => m + 1)
+    if (periodMode === 'weekly') updateParams({ week: String(weekOffset + 1) })
+    else updateParams({ month: String(monthOffset + 1) })
   }
 
   async function handleExport() {
@@ -89,6 +109,13 @@ export function ReportPage() {
       const filename = `דוח-מסחר-${PERIOD_LABELS[periodMode]}-${start.toISOString().slice(0, 10)}.pdf`
       const { exportElementToPdf } = await import('../lib/exportPdf')
       await exportElementToPdf(printableRef.current, filename)
+      toast.add({ title: 'הדוח יוצא בהצלחה', type: 'success' })
+    } catch (err) {
+      toast.add({
+        title: 'שגיאה בייצוא הדוח',
+        description: err instanceof Error ? err.message : undefined,
+        type: 'error',
+      })
     } finally {
       setExporting(false)
     }
@@ -125,7 +152,7 @@ export function ReportPage() {
           <button
             key={p}
             type="button"
-            onClick={() => setPeriodMode(p)}
+            onClick={() => updateParams({ period: p })}
             className={`rounded-md px-4 py-1.5 text-sm font-medium transition ${
               periodMode === p ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'
             }`}
@@ -148,9 +175,11 @@ export function ReportPage() {
       </div>
 
       {periodTrades.length === 0 && (
-        <p className="py-6 text-center text-sm text-muted-foreground">
-          אין עסקאות ב{periodMode === 'weekly' ? 'שבוע' : 'חודש'} זה.
-        </p>
+        <EmptyState
+          icon={CalendarX}
+          title={`אין עסקאות ב${periodMode === 'weekly' ? 'שבוע' : 'חודש'} זה`}
+          description="נסה/י לנווט לתקופה אחרת או להוסיף עסקאות."
+        />
       )}
 
       <div ref={printableRef} className="relative rounded-xl border border-border bg-card p-6 shadow-sm">

@@ -9,6 +9,8 @@ import { Button } from '../../components/ui/button'
 import { Alert, AlertDescription } from '../../components/ui/alert'
 import { Badge } from '../../components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
+import { FormSaveBar } from '../../components/FormSaveBar'
+import { toast } from '../../components/ui/toast'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -183,8 +185,10 @@ export function CustomerFormPage() {
       setSaving(false)
       if (error) {
         setError(error.message)
+        toast.add({ title: 'שגיאה בעדכון הלקוח', description: error.message, type: 'error' })
         return
       }
+      toast.add({ title: 'הלקוח עודכן בהצלחה', type: 'success' })
       navigate('/business/customers')
       return
     }
@@ -193,8 +197,10 @@ export function CustomerFormPage() {
     setSaving(false)
     if (error) {
       setError(error.message)
+      toast.add({ title: 'שגיאה בשמירת הלקוח', description: error.message, type: 'error' })
       return
     }
+    toast.add({ title: 'הלקוח נשמר בהצלחה', type: 'success' })
     navigate(`/business/customers/${data.id}/edit`)
   }
 
@@ -216,8 +222,10 @@ export function CustomerFormPage() {
     setSavingBilling(false)
     if (error) {
       setBillingErrorMsg(error.message)
+      toast.add({ title: 'שגיאה בהוספת חיוב', description: error.message, type: 'error' })
       return
     }
+    toast.add({ title: 'החיוב נוסף בהצלחה', type: 'success' })
     setBillingForm(initialBillingState)
   }
 
@@ -226,7 +234,12 @@ export function CustomerFormPage() {
     const { error } = await supabase.from('customer_billings').delete().eq('id', billingId)
     setDeletingBillingId(null)
     setConfirmDeleteBillingId(null)
-    if (error) setBillingErrorMsg(error.message)
+    if (error) {
+      setBillingErrorMsg(error.message)
+      toast.add({ title: 'שגיאה במחיקת החיוב', description: error.message, type: 'error' })
+      return
+    }
+    toast.add({ title: 'החיוב נמחק', type: 'success' })
   }
 
   if (loading) {
@@ -413,9 +426,11 @@ export function CustomerFormPage() {
           </Field>
         </Section>
 
-        <Button type="submit" size="lg" disabled={saving}>
-          {saving ? 'שומר...' : isEditing ? 'עדכון לקוח' : 'שמירת לקוח'}
-        </Button>
+        <FormSaveBar>
+          <Button type="submit" size="lg" disabled={saving}>
+            {saving ? 'שומר...' : isEditing ? 'עדכון לקוח' : 'שמירת לקוח'}
+          </Button>
+        </FormSaveBar>
       </form>
 
       {isEditing && (

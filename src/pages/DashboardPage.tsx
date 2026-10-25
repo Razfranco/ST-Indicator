@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   Bar,
   BarChart,
@@ -67,10 +68,29 @@ function tooltipStyle() {
 
 export function DashboardPage() {
   const { trades, loading, error } = useTrades()
-  const [scope, setScope] = useState<DashboardScope>('monthly')
+  const [searchParams, setSearchParams] = useSearchParams()
   const now = new Date()
-  const [calYear, setCalYear] = useState(now.getFullYear())
-  const [calMonth, setCalMonth] = useState(now.getMonth())
+  const scope = (searchParams.get('scope') as DashboardScope | null) ?? 'monthly'
+  const calYear = searchParams.get('y') ? Number(searchParams.get('y')) : now.getFullYear()
+  const calMonth = searchParams.get('m') != null ? Number(searchParams.get('m')) : now.getMonth()
+
+  function updateParams(patch: Record<string, string | null>) {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        for (const [key, value] of Object.entries(patch)) {
+          if (value) next.set(key, value)
+          else next.delete(key)
+        }
+        return next
+      },
+      { replace: true },
+    )
+  }
+
+  function setScope(next: DashboardScope) {
+    updateParams({ scope: next })
+  }
 
   const scopedTrades = useMemo(() => {
     if (scope === 'monthly') {
@@ -111,8 +131,7 @@ export function DashboardPage() {
 
   function goMonth(delta: number) {
     const d = new Date(calYear, calMonth + delta, 1)
-    setCalYear(d.getFullYear())
-    setCalMonth(d.getMonth())
+    updateParams({ y: String(d.getFullYear()), m: String(d.getMonth()) })
   }
 
   if (loading) {

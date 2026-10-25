@@ -12,6 +12,8 @@ import { Button } from '../../components/ui/button'
 import { Checkbox } from '../../components/ui/checkbox'
 import { Label } from '../../components/ui/label'
 import { Alert, AlertDescription } from '../../components/ui/alert'
+import { toast } from '../../components/ui/toast'
+import { FormSaveBar } from '../../components/FormSaveBar'
 import type { MeetingChannel, MeetingStatus, MeetingTranscript } from '../../types/mentorship.types'
 
 const CHANNELS: MeetingChannel[] = ['whatsapp', 'google_meet', 'other']
@@ -206,9 +208,11 @@ export function MeetingFormPage() {
 
     if (error) {
       setError(error.message)
+      toast.add({ title: 'שגיאה', description: error.message, type: 'error' })
       return
     }
 
+    toast.add({ title: isEditing ? 'הפגישה עודכנה' : 'הפגישה נשמרה', type: 'success' })
     navigate('/mentoring/meetings')
   }
 
@@ -248,9 +252,11 @@ export function MeetingFormPage() {
 
     if (error) {
       setTranscriptError(error.message)
+      toast.add({ title: 'שגיאה', description: error.message, type: 'error' })
       return
     }
     setTranscript(data)
+    toast.add({ title: 'התמליל נשמר', type: 'success' })
   }
 
   if (loading) {
@@ -397,9 +403,11 @@ export function MeetingFormPage() {
           </Label>
         </Section>
 
-        <Button type="submit" disabled={saving} size="lg">
-          {saving ? 'שומר...' : isEditing ? 'עדכון פגישה' : 'שמירת פגישה'}
-        </Button>
+        <FormSaveBar>
+          <Button type="submit" disabled={saving} size="lg" className="w-full">
+            {saving ? 'שומר...' : isEditing ? 'עדכון פגישה' : 'שמירת פגישה'}
+          </Button>
+        </FormSaveBar>
       </form>
 
       {isEditing && (

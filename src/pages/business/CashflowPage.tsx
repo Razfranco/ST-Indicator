@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useCustomers } from '../../lib/useCustomers'
 import { useCustomerBillings } from '../../lib/useCustomerBillings'
 import { useExpenses } from '../../lib/useExpenses'
@@ -20,12 +20,24 @@ export function CashflowPage() {
   const { billings, loading: loadingBillings, error: billingsError } = useCustomerBillings()
   const { expenses, loading: loadingExpenses, error: expensesError } = useExpenses()
   const { fixedExpenses, loading: loadingFixed, error: fixedError } = useFixedExpenses()
+  const [searchParams, setSearchParams] = useSearchParams()
 
-  const [year, setYear] = useState(now.getFullYear())
-  const [selectedMonth, setSelectedMonth] = useState(now.getMonth())
+  const [year, setYear] = useState(() => Number(searchParams.get('year')) || now.getFullYear())
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const m = Number(searchParams.get('month'))
+    return m >= 1 && m <= 12 ? m - 1 : now.getMonth()
+  })
 
   const loading = loadingBillings || loadingExpenses || loadingFixed
   const error = billingsError ?? expensesError ?? fixedError
+
+  useEffect(() => {
+    const next = new URLSearchParams()
+    if (year !== now.getFullYear()) next.set('year', String(year))
+    if (selectedMonth !== now.getMonth()) next.set('month', String(selectedMonth + 1))
+    setSearchParams(next, { replace: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [year, selectedMonth])
 
   const customerNameById = useMemo(() => {
     const map = new Map<string, string>()

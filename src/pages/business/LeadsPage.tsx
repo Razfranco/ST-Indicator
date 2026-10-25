@@ -1,5 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import { UserPlus } from 'lucide-react'
 import { supabase } from '../../lib/supabaseClient'
 import { useLeads } from '../../lib/useLeads'
 import {
@@ -18,7 +20,11 @@ import { Badge } from '../../components/ui/badge'
 import { Button } from '../../components/ui/button'
 import { Alert, AlertDescription } from '../../components/ui/alert'
 import { Skeleton } from '../../components/ui/skeleton'
+import { Checkbox } from '../../components/ui/checkbox'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
+import { EmptyState } from '../../components/EmptyState'
+import { BulkActionBar } from '../../components/BulkActionBar'
+import { toast } from '../../components/ui/toast'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -138,11 +144,15 @@ function FollowUpCell({ followUpAt }: { followUpAt: string | null }) {
 
 function LeadCard({
   lead: l,
+  selected,
+  onToggleSelected,
   onEdit,
   onDelete,
   deleting,
 }: {
   lead: Lead
+  selected: boolean
+  onToggleSelected: (checked: boolean) => void
   onEdit: () => void
   onDelete: () => void
   deleting: boolean
@@ -150,7 +160,10 @@ function LeadCard({
   return (
     <Card className="gap-2 p-3 shadow-sm">
       <div className="flex items-center justify-between gap-2 px-4">
-        <span className="font-medium text-foreground">{l.full_name}</span>
+        <div className="flex items-center gap-2">
+          <Checkbox checked={selected} onCheckedChange={onToggleSelected} aria-label={`בחירת ${l.full_name}`} />
+          <span className="font-medium text-foreground">{l.full_name}</span>
+        </div>
         <Badge variant="outline" className={`border-transparent ${statusClass[l.status]}`}>
           {statusLabel[l.status]}
         </Badge>
@@ -300,6 +313,7 @@ function LeadFormFields({
 
 export function LeadsPage() {
   const { leads, loading, error: loadError } = useLeads()
+  const [searchParams, setSearchParams] = useSearchParams()
 
   const [form, setForm] = useState<FormState>(emptyForm)
   const [saving, setSaving] = useState(false)
@@ -310,19 +324,34 @@ export function LeadsPage() {
   const [savingEdit, setSavingEdit] = useState(false)
   const [editError, setEditError] = useState<string | null>(null)
 
-  const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set())
+  const [pendingDeleteIds, setPendingDeleteIds] = useState<string[] | null>(null)
 
-  const [nameFilter, setNameFilter] = useState('')
-  const [phoneFilter, setPhoneFilter] = useState('')
-  const [sourceFilter, setSourceFilter] = useState('')
-  const [statusFilter, setStatusFilter] = useState<LeadStatus | ''>('')
-  const [followUpFilter, setFollowUpFilter] = useState('')
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
-  const [sortField, setSortField] = useState<SortField | null>(null)
-  const [sortDir, setSortDir] = useState<SortDir>('asc')
+  const [nameFilter, setNameFilter] = useState(searchParams.get('name') ?? '')
+  const [phoneFilter, setPhoneFilter] = useState(searchParams.get('phone') ?? '')
+  const [sourceFilter, setSourceFilter] = useState(searchParams.get('source') ?? '')
+  const [statusFilter, setStatusFilter] = useState<LeadStatus | ''>((searchParams.get('status') as LeadStatus) ?? '')
+  const [followUpFilter, setFollowUpFilter] = useState(searchParams.get('followUp') ?? '')
+
+  const [sortField, setSortField] = useState<SortField | null>((searchParams.get('sort') as SortField) ?? null)
+  const [sortDir, setSortDir] = useState<SortDir>((searchParams.get('dir') as SortDir) ?? 'asc')
 
   const error = loadError ?? actionError
+
+  useEffect(() => {
+    const next = new URLSearchParams()
+    if (nameFilter) next.set('name', nameFilter)
+    if (phoneFilter) next.set('phone', phoneFilter)
+    if (sourceFilter) next.set('source', sourceFilter)
+    if (statusFilter) next.set('status', statusFilter)
+    if (followUpFilter) next.set('followUp', followUpFilter)
+    if (sortField) next.set('sort', sortField)
+    if (sortField) next.set('dir', sortDir)
+    setSearchParams(next, { replace: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nameFilter, phoneFilter, sourceFilter, statusFilter, followUpFilter, sortField, sortDir])
 
   const sourceOptions = useMemo(
     () => Array.from(new Set(leads.map((l) => l.source).filter(Boolean))).sort(),
@@ -376,6 +405,28 @@ export function LeadsPage() {
     }
   }
 
+  function toggleSelected(id: string, checked: boolean) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (checked) next.add(id)
+      else next.delete(id)
+      return next
+    })
+  }
+
+  const allVisibleSelected = sorted.length > 0 && sorted.every((l) => selectedIds.has(l.id))
+
+  function toggleSelectAll(checked: boolean) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      for (const l of sorted) {
+        if (checked) next.add(l.id)
+        else next.delete(l.id)
+      }
+      return next
+    })
+  }
+
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((f) => ({ ...f, [key]: value }))
   }
@@ -404,8 +455,10 @@ export function LeadsPage() {
 
     if (error) {
       setActionError(error.message)
+      toast.add({ title: 'שגיאה בהוספת הליד', description: error.message, type: 'error' })
       return
     }
+    toast.add({ title: 'הליד נוסף בהצלחה', type: 'success' })
     setForm(emptyForm)
   }
 
@@ -420,17 +473,29 @@ export function LeadsPage() {
 
     if (error) {
       setEditError(error.message)
+      toast.add({ title: 'שגיאה בעדכון הליד', description: error.message, type: 'error' })
       return
     }
+    toast.add({ title: 'הליד עודכן בהצלחה', type: 'success' })
     closeEdit()
   }
 
-  async function handleDelete(id: string) {
-    setDeletingId(id)
-    const { error } = await supabase.from('leads').delete().eq('id', id)
-    setDeletingId(null)
-    setConfirmDeleteId(null)
-    if (error) setActionError(error.message)
+  async function handleDeleteMany(ids: string[]) {
+    setDeletingIds(new Set(ids))
+    const { error } = await supabase.from('leads').delete().in('id', ids)
+    setDeletingIds(new Set())
+    setPendingDeleteIds(null)
+    if (error) {
+      toast.add({ title: 'שגיאה במחיקה', description: error.message, type: 'error' })
+      setActionError(error.message)
+      return
+    }
+    toast.add({ title: ids.length > 1 ? `${ids.length} לידים נמחקו` : 'הליד נמחק', type: 'success' })
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      for (const id of ids) next.delete(id)
+      return next
+    })
   }
 
   return (
@@ -451,6 +516,16 @@ export function LeadsPage() {
           </Button>
         </form>
       </Section>
+
+      <BulkActionBar count={selectedIds.size} onClear={() => setSelectedIds(new Set())}>
+        <Button
+          variant="destructive"
+          size="sm"
+          onClick={() => setPendingDeleteIds(Array.from(selectedIds))}
+        >
+          מחיקת נבחרים
+        </Button>
+      </BulkActionBar>
 
       <Card className="grid grid-cols-2 gap-3 p-3 shadow-sm sm:grid-cols-5">
         <FilterField label="שם מלא">
@@ -515,7 +590,7 @@ export function LeadsPage() {
           ))}
         </div>
       ) : sorted.length === 0 ? (
-        <p className="py-10 text-center text-muted-foreground">אין לידים להצגה.</p>
+        <EmptyState icon={UserPlus} title="אין לידים להצגה" description="נסה/י לשנות את הסינון, או הוסף/י ליד חדש למעלה." />
       ) : (
         <>
           <div className="flex flex-col gap-3 sm:hidden">
@@ -523,17 +598,22 @@ export function LeadsPage() {
               <LeadCard
                 key={l.id}
                 lead={l}
+                selected={selectedIds.has(l.id)}
+                onToggleSelected={(checked) => toggleSelected(l.id, checked)}
                 onEdit={() => openEdit(l)}
-                onDelete={() => setConfirmDeleteId(l.id)}
-                deleting={deletingId === l.id}
+                onDelete={() => setPendingDeleteIds([l.id])}
+                deleting={deletingIds.has(l.id)}
               />
             ))}
           </div>
 
           <Card className="hidden overflow-x-auto p-0 shadow-sm sm:block">
-            <Table className="min-w-[980px]">
+            <Table className="min-w-[1020px]">
               <TableHeader className="bg-muted">
                 <TableRow>
+                  <TableHead className="w-8">
+                    <Checkbox checked={allVisibleSelected} onCheckedChange={toggleSelectAll} aria-label="בחירת הכל" />
+                  </TableHead>
                   <SortHeader label="שם מלא" field="full_name" current={sortField} dir={sortDir} onClick={toggleSort} />
                   <TableHead>טלפון</TableHead>
                   <SortHeader label="מקור" field="source" current={sortField} dir={sortDir} onClick={toggleSort} />
@@ -560,6 +640,13 @@ export function LeadsPage() {
               <TableBody>
                 {sorted.map((l) => (
                   <TableRow key={l.id}>
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedIds.has(l.id)}
+                        onCheckedChange={(checked: boolean) => toggleSelected(l.id, checked)}
+                        aria-label={`בחירת ${l.full_name}`}
+                      />
+                    </TableCell>
                     <TableCell className="font-medium text-foreground">{l.full_name}</TableCell>
                     <TableCell className="text-muted-foreground" dir="ltr">
                       {l.phone}
@@ -590,8 +677,8 @@ export function LeadsPage() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => setConfirmDeleteId(l.id)}
-                        disabled={deletingId === l.id}
+                        onClick={() => setPendingDeleteIds([l.id])}
+                        disabled={deletingIds.has(l.id)}
                         className="text-muted-foreground hover:text-destructive"
                       >
                         מחיקה
@@ -624,15 +711,21 @@ export function LeadsPage() {
         </form>
       </Modal>
 
-      <AlertDialog open={confirmDeleteId != null} onOpenChange={(next: boolean) => !next && setConfirmDeleteId(null)}>
+      <AlertDialog open={pendingDeleteIds != null} onOpenChange={(next: boolean) => !next && setPendingDeleteIds(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>מחיקת ליד</AlertDialogTitle>
-            <AlertDialogDescription>פעולה זו אינה הפיכה. למחוק את הליד?</AlertDialogDescription>
+            <AlertDialogTitle>{(pendingDeleteIds?.length ?? 0) > 1 ? 'מחיקת לידים' : 'מחיקת ליד'}</AlertDialogTitle>
+            <AlertDialogDescription>
+              פעולה זו אינה הפיכה. למחוק{' '}
+              {(pendingDeleteIds?.length ?? 0) > 1 ? `${pendingDeleteIds?.length} לידים נבחרים` : 'את הליד'}?
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>ביטול</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" onClick={() => confirmDeleteId && handleDelete(confirmDeleteId)}>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => pendingDeleteIds && handleDeleteMany(pendingDeleteIds)}
+            >
               מחיקה
             </AlertDialogAction>
           </AlertDialogFooter>

@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { Calendar as CalendarIcon, List as ListIcon, Plus } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
+import { Calendar as CalendarIcon, CalendarX, List as ListIcon, Plus } from 'lucide-react'
 import { supabase } from '../../lib/supabaseClient'
 import { useAuth } from '../../context/AuthContext'
 import { useMentorshipMeetings } from '../../lib/useMentorshipMeetings'
@@ -15,7 +15,11 @@ import { Badge } from '../../components/ui/badge'
 import { Alert, AlertDescription } from '../../components/ui/alert'
 import { Skeleton } from '../../components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '../../components/ui/tabs'
+import { Checkbox } from '../../components/ui/checkbox'
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '../../components/ui/table'
+import { toast } from '../../components/ui/toast'
+import { EmptyState } from '../../components/EmptyState'
+import { BulkActionBar } from '../../components/BulkActionBar'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -89,16 +93,37 @@ export function MeetingsPage() {
   const { students } = useStudents()
   const { profiles } = useProfiles()
 
+  const [searchParams, setSearchParams] = useSearchParams()
+
   const [view, setView] = useState<View>('calendar')
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
 
-  const [statusFilter, setStatusFilter] = useState<MeetingStatus | ''>('')
-  const [channelFilter, setChannelFilter] = useState<MeetingChannel | ''>('')
-  const [studentFilter, setStudentFilter] = useState('')
-  const [fromDate, setFromDate] = useState('')
-  const [toDate, setToDate] = useState('')
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false)
+  const [bulkDeleting, setBulkDeleting] = useState(false)
+
+  // סינוני הרשימה מסונכרנים ל-URL (f_* כדי לא להתנגש עם ?date= של "פגישה חדשה" מהלוח)
+  const [statusFilter, setStatusFilter] = useState<MeetingStatus | ''>(
+    () => (searchParams.get('f_status') as MeetingStatus | null) ?? '',
+  )
+  const [channelFilter, setChannelFilter] = useState<MeetingChannel | ''>(
+    () => (searchParams.get('f_channel') as MeetingChannel | null) ?? '',
+  )
+  const [studentFilter, setStudentFilter] = useState(() => searchParams.get('f_student') ?? '')
+  const [fromDate, setFromDate] = useState(() => searchParams.get('f_from') ?? '')
+  const [toDate, setToDate] = useState(() => searchParams.get('f_to') ?? '')
+
+  useEffect(() => {
+    const next = new URLSearchParams()
+    if (studentFilter) next.set('f_student', studentFilter)
+    if (statusFilter) next.set('f_status', statusFilter)
+    if (channelFilter) next.set('f_channel', channelFilter)
+    if (fromDate) next.set('f_from', fromDate)
+    if (toDate) next.set('f_to', toDate)
+    setSearchParams(next, { replace: true })
+  }, [studentFilter, statusFilter, channelFilter, fromDate, toDate, setSearchParams])
 
   const [sortField, setSortField] = useState<SortField | null>('starts_at')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
@@ -186,6 +211,26 @@ export function MeetingsPage() {
     }
   }
 
+  function changeView(next: View) {
+    setView(next)
+    setSelectedIds(new Set())
+  }
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const allVisibleSelected = sorted.length > 0 && sorted.every((m) => selectedIds.has(m.id))
+
+  function toggleSelectAllVisible() {
+    setSelectedIds(allVisibleSelected ? new Set() : new Set(sorted.map((m) => m.id)))
+  }
+
   async function confirmDelete() {
     if (!confirmDeleteId) return
     const id = confirmDeleteId
@@ -193,7 +238,28 @@ export function MeetingsPage() {
     const { error } = await supabase.from('mentorship_meetings').delete().eq('id', id)
     setDeletingId(null)
     setConfirmDeleteId(null)
-    if (error) setActionError(error.message)
+    if (error) {
+      setActionError(error.message)
+      toast.add({ title: 'שגיאה', description: error.message, type: 'error' })
+      return
+    }
+    toast.add({ title: 'הפגישה נמחקה', type: 'success' })
+  }
+
+  async function confirmBulkDeleteAction() {
+    const ids = Array.from(selectedIds)
+    if (ids.length === 0) return
+    setBulkDeleting(true)
+    const { error } = await supabase.from('mentorship_meetings').delete().in('id', ids)
+    setBulkDeleting(false)
+    setConfirmBulkDelete(false)
+    if (error) {
+      setActionError(error.message)
+      toast.add({ title: 'שגיאה', description: error.message, type: 'error' })
+      return
+    }
+    toast.add({ title: `${ids.length} פגישות נמחקו`, type: 'success' })
+    setSelectedIds(new Set())
   }
 
   function formatStartsAt(iso: string) {
@@ -215,7 +281,7 @@ export function MeetingsPage() {
         </Alert>
       )}
 
-      <Tabs value={view} onValueChange={(v) => setView(v as View)}>
+      <Tabs value={view} onValueChange={(v) => changeView(v as View)}>
         <TabsList className="w-full">
           <TabsTrigger value="calendar" className="flex-1 gap-1.5">
             <CalendarIcon className="h-4 w-4" /> לוח שנה
@@ -351,14 +417,34 @@ export function MeetingsPage() {
           </div>
         </Card>
       ) : sorted.length === 0 ? (
-        <p className="py-10 text-center text-muted-foreground">אין פגישות להצגה.</p>
+        <EmptyState
+          icon={CalendarX}
+          title="אין פגישות להצגה"
+          description="נסה/י לשנות את הסינון, או קבע/י פגישה ראשונה."
+          action={
+            <Button render={<Link to="/mentoring/meetings/new" />}>
+              <Plus className="h-4 w-4" /> פגישה ראשונה
+            </Button>
+          }
+        />
       ) : (
         <>
+          <BulkActionBar count={selectedIds.size} onClear={() => setSelectedIds(new Set())}>
+            <Button variant="destructive" size="sm" onClick={() => setConfirmBulkDelete(true)} disabled={bulkDeleting}>
+              מחיקת {selectedIds.size} פגישות
+            </Button>
+          </BulkActionBar>
+
           <div className="flex flex-col gap-3 sm:hidden">
+            <label className="flex items-center gap-2 px-1 text-xs text-muted-foreground">
+              <Checkbox checked={allVisibleSelected} onCheckedChange={toggleSelectAllVisible} />
+              בחירת הכל
+            </label>
             {sorted.map((m) => (
               <Card key={m.id} className="gap-2 p-3 shadow-sm">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="flex items-center gap-1.5 font-medium text-foreground">
+                  <span className="flex items-center gap-2 font-medium text-foreground">
+                    <Checkbox checked={selectedIds.has(m.id)} onCheckedChange={() => toggleSelect(m.id)} />
                     {missingTranscript(m) && <span className="h-2 w-2 shrink-0 rounded-full bg-red-500" />}
                     {studentById.get(m.student_id)?.display_name ?? 'תלמיד לא ידוע'}
                   </span>
@@ -397,6 +483,9 @@ export function MeetingsPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <th className="h-10 w-8 px-2 align-middle">
+                      <Checkbox checked={allVisibleSelected} onCheckedChange={toggleSelectAllVisible} />
+                    </th>
                     <SortHeader label="תאריך ושעה" field="starts_at" current={sortField} dir={sortDir} onClick={toggleSort} />
                     <th className="h-10 px-2 text-start align-middle font-medium text-muted-foreground">תלמיד</th>
                     {isAdmin && (
@@ -410,7 +499,10 @@ export function MeetingsPage() {
                 </TableHeader>
                 <TableBody>
                   {sorted.map((m) => (
-                    <TableRow key={m.id}>
+                    <TableRow key={m.id} data-state={selectedIds.has(m.id) ? 'selected' : undefined}>
+                      <TableCell>
+                        <Checkbox checked={selectedIds.has(m.id)} onCheckedChange={() => toggleSelect(m.id)} />
+                      </TableCell>
                       <TableCell className="text-foreground" dir="ltr">
                         {formatStartsAt(m.starts_at)}
                       </TableCell>
@@ -471,6 +563,21 @@ export function MeetingsPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>ביטול</AlertDialogCancel>
             <AlertDialogAction variant="destructive" onClick={confirmDelete}>
+              מחיקה
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={confirmBulkDelete} onOpenChange={setConfirmBulkDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>מחיקת {selectedIds.size} פגישות</AlertDialogTitle>
+            <AlertDialogDescription>פעולה זו אינה הפיכה. למחוק את כל הפגישות שנבחרו?</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>ביטול</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={confirmBulkDeleteAction} disabled={bulkDeleting}>
               מחיקה
             </AlertDialogAction>
           </AlertDialogFooter>

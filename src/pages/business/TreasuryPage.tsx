@@ -1,5 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import { Wallet } from 'lucide-react'
 import { supabase } from '../../lib/supabaseClient'
 import { useTreasuryTransactions } from '../../lib/useTreasuryTransactions'
 import { formatILS } from '../../lib/format'
@@ -19,7 +21,11 @@ import { Badge } from '../../components/ui/badge'
 import { Button } from '../../components/ui/button'
 import { Alert, AlertDescription } from '../../components/ui/alert'
 import { Skeleton } from '../../components/ui/skeleton'
+import { Checkbox } from '../../components/ui/checkbox'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
+import { EmptyState } from '../../components/EmptyState'
+import { BulkActionBar } from '../../components/BulkActionBar'
+import { toast } from '../../components/ui/toast'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -76,22 +82,38 @@ type SortField = 'transaction_date' | 'type' | 'amount'
 
 export function TreasuryPage() {
   const { transactions, loading, error: loadError } = useTreasuryTransactions()
+  const [searchParams, setSearchParams] = useSearchParams()
 
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<FormState>(emptyForm)
   const [saving, setSaving] = useState(false)
-  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set())
   const [actionError, setActionError] = useState<string | null>(null)
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [pendingDeleteIds, setPendingDeleteIds] = useState<string[] | null>(null)
 
-  const [typeFilter, setTypeFilter] = useState<TreasuryTransactionType | ''>('')
-  const [fromDate, setFromDate] = useState('')
-  const [toDate, setToDate] = useState('')
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
-  const [sortField, setSortField] = useState<SortField | null>(null)
-  const [sortDir, setSortDir] = useState<SortDir>('asc')
+  const [typeFilter, setTypeFilter] = useState<TreasuryTransactionType | ''>(
+    (searchParams.get('type') as TreasuryTransactionType) ?? '',
+  )
+  const [fromDate, setFromDate] = useState(searchParams.get('from') ?? '')
+  const [toDate, setToDate] = useState(searchParams.get('to') ?? '')
+
+  const [sortField, setSortField] = useState<SortField | null>((searchParams.get('sort') as SortField) ?? null)
+  const [sortDir, setSortDir] = useState<SortDir>((searchParams.get('dir') as SortDir) ?? 'asc')
 
   const error = loadError ?? actionError
+
+  useEffect(() => {
+    const next = new URLSearchParams()
+    if (typeFilter) next.set('type', typeFilter)
+    if (fromDate) next.set('from', fromDate)
+    if (toDate) next.set('to', toDate)
+    if (sortField) next.set('sort', sortField)
+    if (sortField) next.set('dir', sortDir)
+    setSearchParams(next, { replace: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [typeFilter, fromDate, toDate, sortField, sortDir])
 
   const balance = useMemo(
     () =>
@@ -146,6 +168,26 @@ export function TreasuryPage() {
     }
   }
 
+  function toggleSelected(id: string, checked: boolean) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (checked) next.add(id)
+      else next.delete(id)
+      return next
+    })
+  }
+  const allVisibleSelected = sorted.length > 0 && sorted.every((t) => selectedIds.has(t.id))
+  function toggleSelectAll(checked: boolean) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      for (const t of sorted) {
+        if (checked) next.add(t.id)
+        else next.delete(t.id)
+      }
+      return next
+    })
+  }
+
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((f) => ({ ...f, [key]: value }))
   }
@@ -181,17 +223,29 @@ export function TreasuryPage() {
 
     if (error) {
       setActionError(error.message)
+      toast.add({ title: 'שגיאה בשמירת התנועה', description: error.message, type: 'error' })
       return
     }
+    toast.add({ title: editingId ? 'התנועה עודכנה בהצלחה' : 'התנועה נוספה בהצלחה', type: 'success' })
     cancelEdit()
   }
 
-  async function handleDelete(id: string) {
-    setDeletingId(id)
-    const { error } = await supabase.from('treasury_transactions').delete().eq('id', id)
-    setDeletingId(null)
-    setConfirmDeleteId(null)
-    if (error) setActionError(error.message)
+  async function handleDeleteMany(ids: string[]) {
+    setDeletingIds(new Set(ids))
+    const { error } = await supabase.from('treasury_transactions').delete().in('id', ids)
+    setDeletingIds(new Set())
+    setPendingDeleteIds(null)
+    if (error) {
+      setActionError(error.message)
+      toast.add({ title: 'שגיאה במחיקה', description: error.message, type: 'error' })
+      return
+    }
+    toast.add({ title: ids.length > 1 ? `${ids.length} תנועות נמחקו` : 'התנועה נמחקה', type: 'success' })
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      for (const id of ids) next.delete(id)
+      return next
+    })
   }
 
   return (
@@ -275,6 +329,16 @@ export function TreasuryPage() {
         </form>
       </Section>
 
+      <BulkActionBar count={selectedIds.size} onClear={() => setSelectedIds(new Set())}>
+        <Button
+          variant="destructive"
+          size="sm"
+          onClick={() => setPendingDeleteIds(Array.from(selectedIds))}
+        >
+          מחיקת נבחרים
+        </Button>
+      </BulkActionBar>
+
       <Card className="grid grid-cols-2 gap-3 p-3 shadow-sm sm:grid-cols-3">
         <FilterField label="סוג">
           <select
@@ -315,16 +379,23 @@ export function TreasuryPage() {
           ))}
         </div>
       ) : sorted.length === 0 ? (
-        <p className="py-10 text-center text-muted-foreground">אין תנועות להצגה.</p>
+        <EmptyState icon={Wallet} title="אין תנועות להצגה" description="נסה/י לשנות את הסינון, או הוסף/י תנועה בטופס שלמעלה." />
       ) : (
         <>
           <div className="flex flex-col gap-3 sm:hidden">
             {sorted.map((t) => (
               <Card key={t.id} className="gap-2 p-3 shadow-sm">
                 <div className="flex items-center justify-between gap-2 px-4">
-                  <Badge variant="outline" className={`border-transparent ${typeClass[t.type]}`}>
-                    {typeLabel[t.type]}
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      checked={selectedIds.has(t.id)}
+                      onCheckedChange={(checked: boolean) => toggleSelected(t.id, checked)}
+                      aria-label="בחירת תנועה"
+                    />
+                    <Badge variant="outline" className={`border-transparent ${typeClass[t.type]}`}>
+                      {typeLabel[t.type]}
+                    </Badge>
+                  </div>
                   <span
                     className={`font-semibold ${t.type === 'deposit' ? 'text-primary' : 'text-destructive'}`}
                     dir="ltr"
@@ -350,8 +421,8 @@ export function TreasuryPage() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => setConfirmDeleteId(t.id)}
-                    disabled={deletingId === t.id}
+                    onClick={() => setPendingDeleteIds([t.id])}
+                    disabled={deletingIds.has(t.id)}
                     className="text-muted-foreground hover:text-destructive"
                   >
                     מחיקה
@@ -362,9 +433,12 @@ export function TreasuryPage() {
           </div>
 
           <Card className="hidden overflow-x-auto p-0 shadow-sm sm:block">
-            <Table className="min-w-[560px]">
+            <Table className="min-w-[600px]">
               <TableHeader className="bg-muted">
                 <TableRow>
+                  <TableHead className="w-8">
+                    <Checkbox checked={allVisibleSelected} onCheckedChange={toggleSelectAll} aria-label="בחירת הכל" />
+                  </TableHead>
                   <SortHeader
                     label="תאריך"
                     field="transaction_date"
@@ -381,6 +455,13 @@ export function TreasuryPage() {
               <TableBody>
                 {sorted.map((t) => (
                   <TableRow key={t.id}>
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedIds.has(t.id)}
+                        onCheckedChange={(checked: boolean) => toggleSelected(t.id, checked)}
+                        aria-label="בחירת תנועה"
+                      />
+                    </TableCell>
                     <TableCell className="text-muted-foreground" dir="ltr">
                       {t.transaction_date}
                     </TableCell>
@@ -408,8 +489,8 @@ export function TreasuryPage() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => setConfirmDeleteId(t.id)}
-                        disabled={deletingId === t.id}
+                        onClick={() => setPendingDeleteIds([t.id])}
+                        disabled={deletingIds.has(t.id)}
                         className="text-muted-foreground hover:text-destructive"
                       >
                         מחיקה
@@ -423,15 +504,21 @@ export function TreasuryPage() {
         </>
       )}
 
-      <AlertDialog open={confirmDeleteId != null} onOpenChange={(next: boolean) => !next && setConfirmDeleteId(null)}>
+      <AlertDialog open={pendingDeleteIds != null} onOpenChange={(next: boolean) => !next && setPendingDeleteIds(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>מחיקת תנועה</AlertDialogTitle>
-            <AlertDialogDescription>פעולה זו אינה הפיכה. למחוק את התנועה?</AlertDialogDescription>
+            <AlertDialogTitle>{(pendingDeleteIds?.length ?? 0) > 1 ? 'מחיקת תנועות' : 'מחיקת תנועה'}</AlertDialogTitle>
+            <AlertDialogDescription>
+              פעולה זו אינה הפיכה. למחוק{' '}
+              {(pendingDeleteIds?.length ?? 0) > 1 ? `${pendingDeleteIds?.length} תנועות נבחרות` : 'את התנועה'}?
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>ביטול</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" onClick={() => confirmDeleteId && handleDelete(confirmDeleteId)}>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => pendingDeleteIds && handleDeleteMany(pendingDeleteIds)}
+            >
               מחיקה
             </AlertDialogAction>
           </AlertDialogFooter>
