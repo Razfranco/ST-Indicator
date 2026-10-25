@@ -17,7 +17,10 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
     return <Navigate to="/login" replace />
   }
 
-  if (!profile?.approved) {
+  const hasAnyAccess =
+    profile?.approved || profile?.business_access || profile?.mentor_access || profile?.role === 'admin'
+
+  if (!hasAnyAccess) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-zinc-950 px-6 text-center">
         <div className="rounded-full bg-amber-950 p-3 text-amber-400">

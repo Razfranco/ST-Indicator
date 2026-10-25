@@ -5,7 +5,13 @@ export function PlatformSelectPage() {
   const { profile, signOut } = useAuth()
 
   const platforms = [
-    { to: '/performance', label: 'דשבורד ביצועים', description: 'עסקאות, דשבורד ודוחות מסחר', icon: ChartIcon, available: true },
+    {
+      to: '/performance',
+      label: 'דשבורד ביצועים',
+      description: 'עסקאות, דשבורד ודוחות מסחר',
+      icon: ChartIcon,
+      available: Boolean(profile?.approved) || profile?.role === 'admin',
+    },
     {
       to: '/business/customers',
       label: 'ניהול עסקי',

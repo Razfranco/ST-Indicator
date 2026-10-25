@@ -4,6 +4,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { AdminRoute } from './components/AdminRoute'
+import { PerformanceRoute } from './components/PerformanceRoute'
 import { BusinessRoute } from './components/BusinessRoute'
 import { MentoringRoute } from './components/MentoringRoute'
 import { Layout, ListIcon, PlusIcon, ChartIcon, DocIcon, AdminIcon } from './components/Layout'
@@ -68,11 +69,13 @@ function PerformanceLayout({ children }: { children: ReactNode }) {
   return <Layout navItems={navItems}>{children}</Layout>
 }
 
-/** מלביש עמוד ביצועים בהגנת גישה (מאושר) ו-Layout של פלטפורמת הביצועים */
+/** מלביש עמוד ביצועים בהגנות הגישה (מאושר בפועל, לא רק גישה כלשהי לאפליקציה) ו-Layout של פלטפורמת הביצועים */
 function performancePage(element: ReactNode) {
   return (
     <ProtectedRoute>
-      <PerformanceLayout>{element}</PerformanceLayout>
+      <PerformanceRoute>
+        <PerformanceLayout>{element}</PerformanceLayout>
+      </PerformanceRoute>
     </ProtectedRoute>
   )
 }
