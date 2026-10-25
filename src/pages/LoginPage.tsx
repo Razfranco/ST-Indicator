@@ -2,6 +2,11 @@ import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { Card, CardContent } from '../components/ui/card'
+import { Label } from '../components/ui/label'
+import { Input } from '../components/ui/input'
+import { Button } from '../components/ui/button'
+import { Alert, AlertDescription } from '../components/ui/alert'
 
 export function LoginPage() {
   const { session, signInWithPassword, signUp } = useAuth()
@@ -36,82 +41,81 @@ export function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-950 px-4">
-      <div className="w-full max-w-sm rounded-2xl border border-zinc-800 bg-zinc-900/60 p-6 shadow-xl">
-        <div className="mx-auto mb-4 h-20 w-20 overflow-hidden rounded-2xl bg-white p-1.5 shadow-lg">
+    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+      <Card className="w-full max-w-sm p-6 shadow-lg">
+        <div className="mx-auto mb-4 h-20 w-20 overflow-hidden rounded-2xl bg-white p-1.5 shadow-sm ring-1 ring-border">
           <img src="/icons/icon-512.png" alt="Shark Trade Indicator" className="h-full w-full object-contain" />
         </div>
-        <h1 className="mb-1 text-center text-2xl font-bold text-zinc-50" dir="ltr">ST Indicator</h1>
-        <p className="mb-6 text-center text-sm text-zinc-400">
+        <h1 className="mb-1 text-center font-heading text-2xl font-semibold text-foreground" dir="ltr">
+          ST Indicator
+        </h1>
+        <p className="mb-6 text-center text-sm text-muted-foreground">
           {mode === 'signin' ? 'התחברות לחשבון שלך' : 'יצירת חשבון חדש'}
         </p>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="email" className="text-sm font-medium text-zinc-300">
-              אימייל
-            </label>
-            <input
-              id="email"
-              type="email"
-              autoComplete="email"
-              required
-              dir="ltr"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2.5 text-left text-zinc-100 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-              placeholder="you@example.com"
-            />
-          </div>
+        <CardContent className="px-0">
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="email">אימייל</Label>
+              <Input
+                id="email"
+                type="email"
+                autoComplete="email"
+                required
+                dir="ltr"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="h-10 text-left"
+                placeholder="you@example.com"
+              />
+            </div>
 
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="password" className="text-sm font-medium text-zinc-300">
-              סיסמה
-            </label>
-            <input
-              id="password"
-              type="password"
-              autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
-              required
-              minLength={6}
-              dir="ltr"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2.5 text-left text-zinc-100 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-              placeholder="••••••••"
-            />
-          </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="password">סיסמה</Label>
+              <Input
+                id="password"
+                type="password"
+                autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
+                required
+                minLength={6}
+                dir="ltr"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="h-10 text-left"
+                placeholder="••••••••"
+              />
+            </div>
 
-          {error && (
-            <p className="rounded-lg bg-red-950/50 px-3 py-2 text-sm text-red-400">{error}</p>
-          )}
-          {info && (
-            <p className="rounded-lg bg-emerald-950/50 px-3 py-2 text-sm text-emerald-400">
-              {info}
-            </p>
-          )}
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription className="text-destructive">{error}</AlertDescription>
+              </Alert>
+            )}
+            {info && (
+              <Alert>
+                <AlertDescription className="text-primary">{info}</AlertDescription>
+              </Alert>
+            )}
 
-          <button
-            type="submit"
-            disabled={submitting}
-            className="mt-2 rounded-lg bg-emerald-600 px-4 py-2.5 font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-50"
+            <Button type="submit" disabled={submitting} size="lg" className="mt-2">
+              {submitting ? 'רגע...' : mode === 'signin' ? 'התחברות' : 'הרשמה'}
+            </Button>
+          </form>
+
+          <Button
+            type="button"
+            variant="link"
+            onClick={() => {
+              setMode(mode === 'signin' ? 'signup' : 'signin')
+              setError(null)
+              setInfo(null)
+            }}
+            className="mt-4 w-full text-center text-muted-foreground"
           >
-            {submitting ? 'רגע...' : mode === 'signin' ? 'התחברות' : 'הרשמה'}
-          </button>
-        </form>
-
-        <button
-          type="button"
-          onClick={() => {
-            setMode(mode === 'signin' ? 'signup' : 'signin')
-            setError(null)
-            setInfo(null)
-          }}
-          className="mt-4 w-full text-center text-sm text-zinc-400 hover:text-zinc-200"
-        >
-          {mode === 'signin' ? 'אין לך חשבון? הרשמה' : 'יש לך כבר חשבון? התחברות'}
-        </button>
-      </div>
+            {mode === 'signin' ? 'אין לך חשבון? הרשמה' : 'יש לך כבר חשבון? התחברות'}
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   )
 }

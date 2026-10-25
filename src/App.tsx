@@ -49,7 +49,7 @@ const AssignmentsPage = lazy(() =>
 )
 
 function PageFallback() {
-  return <p className="py-10 text-center text-zinc-500">טוען...</p>
+  return <p className="py-10 text-center text-muted-foreground">טוען...</p>
 }
 
 const performanceBaseNavItems: NavItem[] = [

@@ -1,14 +1,15 @@
 import type { ReactNode } from 'react'
+import { Card } from './ui/card'
 
 export const inputClass =
-  'w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2.5 text-zinc-100 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500'
+  'flex h-10 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground shadow-xs outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/20'
 
 export function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="flex flex-col gap-4 rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
-      <h3 className="text-sm font-semibold text-zinc-400">{title}</h3>
+    <Card className="gap-4 p-5 shadow-sm">
+      <h3 className="font-heading text-sm font-semibold tracking-wide text-muted-foreground uppercase">{title}</h3>
       {children}
-    </section>
+    </Card>
   )
 }
 
@@ -25,24 +26,24 @@ export function Field({
 }) {
   return (
     <label className="flex flex-col gap-1.5">
-      <span className="text-sm font-medium text-zinc-300">
+      <span className="text-sm font-medium text-foreground">
         {label}
-        {required && <span className="text-red-400"> *</span>}
+        {required && <span className="text-destructive"> *</span>}
       </span>
       {children}
-      {hint && <span className="text-xs text-zinc-500">{hint}</span>}
+      {hint && <span className="text-xs text-muted-foreground">{hint}</span>}
     </label>
   )
 }
 
 export const filterInputClass =
-  'w-full rounded-md border border-zinc-700 bg-zinc-800 px-2 py-1.5 text-sm text-zinc-100 outline-none focus:border-emerald-500'
+  'flex h-8 w-full rounded-md border border-input bg-card px-2 py-1 text-sm text-foreground shadow-xs outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/20'
 
 /** תא סינון קומפקטי לפי כותרת עמודה, לשימוש בשורת הפילטרים מעל טבלה */
 export function FilterField({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="flex flex-col gap-1">
-      <span className="text-xs text-zinc-500">{label}</span>
+      <span className="text-xs font-medium text-muted-foreground">{label}</span>
       {children}
     </label>
   )
@@ -66,11 +67,11 @@ export function SortHeader<F extends string>({
 }) {
   const active = current === field
   return (
-    <th className="px-3 py-2 text-right font-medium">
+    <th className="px-3 py-2 text-right font-medium text-muted-foreground">
       <button
         type="button"
         onClick={() => onClick(field)}
-        className={`flex items-center gap-1 whitespace-nowrap ${active ? 'text-emerald-400' : ''}`}
+        className={`flex items-center gap-1 whitespace-nowrap transition-colors hover:text-foreground ${active ? 'text-primary' : ''}`}
       >
         {label}
         {active && <span>{dir === 'asc' ? '↑' : '↓'}</span>}
@@ -83,8 +84,8 @@ export function SortHeader<F extends string>({
 export function CardField({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <span className="text-zinc-500">{label}</span>
-      <span className="text-zinc-300">{children}</span>
+      <span className="text-muted-foreground">{label}</span>
+      <span className="text-foreground">{children}</span>
     </div>
   )
 }
