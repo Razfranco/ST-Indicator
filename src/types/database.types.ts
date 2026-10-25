@@ -19,6 +19,9 @@ import type {
   TreasuryTransactionUpdate,
 } from './business.types'
 import type {
+  MeetingTranscript,
+  MeetingTranscriptInsert,
+  MeetingTranscriptUpdate,
   MentorAssignment,
   MentorAssignmentInsert,
   MentorAssignmentUpdate,
@@ -136,6 +139,12 @@ export type Database = {
         Row: MentorshipMeeting
         Insert: MentorshipMeetingInsert
         Update: MentorshipMeetingUpdate
+        Relationships: []
+      }
+      meeting_transcripts: {
+        Row: MeetingTranscript
+        Insert: MeetingTranscriptInsert
+        Update: MeetingTranscriptUpdate
         Relationships: []
       }
     }

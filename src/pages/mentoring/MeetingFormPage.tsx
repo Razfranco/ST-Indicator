@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabaseClient'
 import { useAuth } from '../../context/AuthContext'
 import { useStudents } from '../../lib/useStudents'
 import { useProfiles } from '../../lib/useProfiles'
 import { useMentorAssignments } from '../../lib/useMentorAssignments'
 import { Section, Field, inputClass } from '../../components/BusinessFormControls'
-import type { MeetingChannel, MeetingStatus } from '../../types/mentorship.types'
+import type { MeetingChannel, MeetingStatus, MeetingTranscript } from '../../types/mentorship.types'
 
 const CHANNELS: MeetingChannel[] = ['whatsapp', 'google_meet', 'other']
 const channelLabel: Record<MeetingChannel, string> = {
@@ -63,6 +63,7 @@ export function MeetingFormPage() {
   const isAdmin = profile?.role === 'admin'
   const navigate = useNavigate()
   const { id } = useParams()
+  const [searchParams] = useSearchParams()
   const isEditing = Boolean(id)
 
   const { students } = useStudents()
@@ -83,7 +84,7 @@ export function MeetingFormPage() {
   const [form, setForm] = useState<FormState>({
     student_id: '',
     mentor_user_id: user?.id ?? '',
-    date: todayDateInput(),
+    date: searchParams.get('date') ?? todayDateInput(),
     time: nowTimeInput(),
     duration_minutes: '60',
     channel: 'google_meet',
@@ -95,6 +96,13 @@ export function MeetingFormPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(isEditing)
+
+  const [transcript, setTranscript] = useState<MeetingTranscript | null>(null)
+  const [transcriptText, setTranscriptText] = useState('')
+  const [transcriptFilename, setTranscriptFilename] = useState<string | null>(null)
+  const [savingTranscript, setSavingTranscript] = useState(false)
+  const [transcriptError, setTranscriptError] = useState<string | null>(null)
+  const [loadingTranscript, setLoadingTranscript] = useState(isEditing)
 
   useEffect(() => {
     if (!isEditing || !id) return
@@ -125,6 +133,28 @@ export function MeetingFormPage() {
           consent_given: data.consent_given,
         })
         setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [id, isEditing])
+
+  useEffect(() => {
+    if (!isEditing || !id) return
+    let cancelled = false
+    supabase
+      .from('meeting_transcripts')
+      .select('*')
+      .eq('meeting_id', id)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (cancelled) return
+        if (!error && data) {
+          setTranscript(data)
+          setTranscriptText(data.transcript_text)
+          setTranscriptFilename(data.filename)
+        }
+        setLoadingTranscript(false)
       })
     return () => {
       cancelled = true
@@ -177,146 +207,255 @@ export function MeetingFormPage() {
     navigate('/mentoring/meetings')
   }
 
+  async function handleTranscriptFile(file: File) {
+    const text = await file.text()
+    setTranscriptText(text)
+    setTranscriptFilename(file.name)
+  }
+
+  async function handleSaveTranscript(e: FormEvent) {
+    e.preventDefault()
+    if (!user || !id) return
+    if (!transcriptText.trim()) {
+      setTranscriptError('יש להדביק טקסט או לצרף קובץ')
+      return
+    }
+
+    setSavingTranscript(true)
+    setTranscriptError(null)
+
+    const { data, error } = await supabase
+      .from('meeting_transcripts')
+      .upsert(
+        {
+          meeting_id: id,
+          transcript_text: transcriptText,
+          filename: transcriptFilename,
+          uploaded_by: user.id,
+          uploaded_at: new Date().toISOString(),
+        },
+        { onConflict: 'meeting_id' },
+      )
+      .select('*')
+      .single()
+
+    setSavingTranscript(false)
+
+    if (error) {
+      setTranscriptError(error.message)
+      return
+    }
+    setTranscript(data)
+  }
+
   if (loading) {
     return <p className="py-10 text-center text-zinc-500">טוען פגישה...</p>
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-5 pb-6">
-      <h2 className="text-xl font-bold">{isEditing ? 'עריכת פגישה' : 'פגישה חדשה'}</h2>
+    <div className="flex flex-col gap-5 pb-6">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+        <h2 className="text-xl font-bold">{isEditing ? 'עריכת פגישה' : 'פגישה חדשה'}</h2>
 
-      {error && <p className="rounded-lg bg-red-950/50 px-3 py-2 text-sm text-red-400">{error}</p>}
+        {error && <p className="rounded-lg bg-red-950/50 px-3 py-2 text-sm text-red-400">{error}</p>}
 
-      <Section title="פרטי פגישה">
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label="תלמיד" required hint={studentOptions.length === 0 ? 'אין תלמידים משויכים אליך' : undefined}>
-            <select
-              required
-              value={form.student_id}
-              onChange={(e) => update('student_id', e.target.value)}
-              className={inputClass}
-            >
-              <option value="">בחר/י תלמיד</option>
-              {studentOptions.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.display_name}
-                </option>
-              ))}
-            </select>
-          </Field>
-          {isAdmin && (
-            <Field label="מנטור" required>
+        <Section title="פרטי פגישה">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field label="תלמיד" required hint={studentOptions.length === 0 ? 'אין תלמידים משויכים אליך' : undefined}>
               <select
                 required
-                value={form.mentor_user_id}
-                onChange={(e) => update('mentor_user_id', e.target.value)}
+                value={form.student_id}
+                onChange={(e) => update('student_id', e.target.value)}
                 className={inputClass}
               >
-                <option value="">בחר/י מנטור</option>
-                {mentors.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.email}
+                <option value="">בחר/י תלמיד</option>
+                {studentOptions.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.display_name}
                   </option>
                 ))}
               </select>
             </Field>
-          )}
-        </div>
-      </Section>
+            {isAdmin && (
+              <Field label="מנטור" required>
+                <select
+                  required
+                  value={form.mentor_user_id}
+                  onChange={(e) => update('mentor_user_id', e.target.value)}
+                  className={inputClass}
+                >
+                  <option value="">בחר/י מנטור</option>
+                  {mentors.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.email}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            )}
+          </div>
+        </Section>
 
-      <Section title="תזמון">
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <Field label="תאריך" required>
+        <Section title="תזמון">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <Field label="תאריך" required>
+              <input
+                type="date"
+                required
+                value={form.date}
+                onChange={(e) => update('date', e.target.value)}
+                className={inputClass}
+              />
+            </Field>
+            <Field label="שעה" required>
+              <input
+                type="time"
+                required
+                value={form.time}
+                onChange={(e) => update('time', e.target.value)}
+                className={inputClass}
+              />
+            </Field>
+            <Field label="משך (דקות)" required>
+              <input
+                type="number"
+                inputMode="numeric"
+                required
+                value={form.duration_minutes}
+                onChange={(e) => update('duration_minutes', e.target.value)}
+                className={inputClass}
+              />
+            </Field>
+            <Field label="ערוץ" required>
+              <select
+                value={form.channel}
+                onChange={(e) => update('channel', e.target.value as MeetingChannel)}
+                className={inputClass}
+              >
+                {CHANNELS.map((c) => (
+                  <option key={c} value={c}>
+                    {channelLabel[c]}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </div>
+        </Section>
+
+        <Section title="סטטוס והקשר">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {STATUSES.map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => update('status', s)}
+                className={`rounded-lg py-2.5 text-sm font-semibold transition ${
+                  form.status === s
+                    ? s === 'cancelled' || s === 'no_show'
+                      ? 'bg-red-600 text-white'
+                      : 'bg-emerald-600 text-white'
+                    : 'border border-zinc-700 text-zinc-400'
+                }`}
+              >
+                {statusLabel[s]}
+              </button>
+            ))}
+          </div>
+
+          <Field label="נושא">
             <input
-              type="date"
-              required
-              value={form.date}
-              onChange={(e) => update('date', e.target.value)}
+              type="text"
+              value={form.topic}
+              onChange={(e) => update('topic', e.target.value)}
               className={inputClass}
             />
           </Field>
-          <Field label="שעה" required>
-            <input
-              type="time"
-              required
-              value={form.time}
-              onChange={(e) => update('time', e.target.value)}
+
+          <Field label="הערות">
+            <textarea
+              value={form.notes}
+              onChange={(e) => update('notes', e.target.value)}
+              rows={4}
               className={inputClass}
             />
           </Field>
-          <Field label="משך (דקות)" required>
+
+          <label className="flex items-center gap-2 text-sm text-zinc-300">
             <input
-              type="number"
-              inputMode="numeric"
-              required
-              value={form.duration_minutes}
-              onChange={(e) => update('duration_minutes', e.target.value)}
-              className={inputClass}
+              type="checkbox"
+              checked={form.consent_given}
+              onChange={(e) => update('consent_given', e.target.checked)}
+              className="h-4 w-4 accent-emerald-500"
             />
-          </Field>
-          <Field label="ערוץ" required>
-            <select value={form.channel} onChange={(e) => update('channel', e.target.value as MeetingChannel)} className={inputClass}>
-              {CHANNELS.map((c) => (
-                <option key={c} value={c}>
-                  {channelLabel[c]}
-                </option>
-              ))}
-            </select>
-          </Field>
-        </div>
-      </Section>
+            התקבלה הסכמה להקלטה/תמלול
+          </label>
+        </Section>
 
-      <Section title="סטטוס והקשר">
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {STATUSES.map((s) => (
-            <button
-              key={s}
-              type="button"
-              onClick={() => update('status', s)}
-              className={`rounded-lg py-2.5 text-sm font-semibold transition ${
-                form.status === s
-                  ? s === 'cancelled' || s === 'no_show'
-                    ? 'bg-red-600 text-white'
-                    : 'bg-emerald-600 text-white'
-                  : 'border border-zinc-700 text-zinc-400'
-              }`}
-            >
-              {statusLabel[s]}
-            </button>
-          ))}
-        </div>
+        <button
+          type="submit"
+          disabled={saving}
+          className="rounded-lg bg-emerald-600 px-4 py-3 font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-50"
+        >
+          {saving ? 'שומר...' : isEditing ? 'עדכון פגישה' : 'שמירת פגישה'}
+        </button>
+      </form>
 
-        <Field label="נושא">
-          <input type="text" value={form.topic} onChange={(e) => update('topic', e.target.value)} className={inputClass} />
-        </Field>
+      {isEditing && (
+        <form onSubmit={handleSaveTranscript}>
+          <Section title="תמליל פגישה">
+            <p className="text-xs text-zinc-500">
+              הדבק/י טקסט או צרף/י קובץ (TXT / SRT / VTT). הסיכום האוטומטי של ה-AI יתווסף בשלב הבא — כרגע רק שמירת התמליל.
+            </p>
 
-        <Field label="הערות">
-          <textarea
-            value={form.notes}
-            onChange={(e) => update('notes', e.target.value)}
-            rows={4}
-            className={inputClass}
-          />
-        </Field>
+            {transcriptError && (
+              <p className="rounded-lg bg-red-950/50 px-3 py-2 text-sm text-red-400">{transcriptError}</p>
+            )}
 
-        <label className="flex items-center gap-2 text-sm text-zinc-300">
-          <input
-            type="checkbox"
-            checked={form.consent_given}
-            onChange={(e) => update('consent_given', e.target.checked)}
-            className="h-4 w-4 accent-emerald-500"
-          />
-          התקבלה הסכמה להקלטה/תמלול
-        </label>
-      </Section>
+            {loadingTranscript ? (
+              <p className="text-sm text-zinc-500">טוען תמליל...</p>
+            ) : (
+              <>
+                <Field label="קובץ תמליל">
+                  <input
+                    type="file"
+                    accept=".txt,.srt,.vtt,text/plain"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (file) handleTranscriptFile(file)
+                    }}
+                    className="text-sm text-zinc-400 file:me-3 file:rounded-md file:border-0 file:bg-zinc-800 file:px-3 file:py-2 file:text-zinc-200"
+                  />
+                </Field>
 
-      <button
-        type="submit"
-        disabled={saving}
-        className="rounded-lg bg-emerald-600 px-4 py-3 font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-50"
-      >
-        {saving ? 'שומר...' : isEditing ? 'עדכון פגישה' : 'שמירת פגישה'}
-      </button>
-    </form>
+                <Field
+                  label="טקסט התמליל"
+                  hint={
+                    transcript
+                      ? `נשמר לאחרונה ${new Date(transcript.uploaded_at).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' })}${transcriptFilename ? ` · ${transcriptFilename}` : ''}`
+                      : undefined
+                  }
+                >
+                  <textarea
+                    value={transcriptText}
+                    onChange={(e) => setTranscriptText(e.target.value)}
+                    rows={8}
+                    placeholder="הדבק/י כאן את תמליל הפגישה..."
+                    className={inputClass}
+                  />
+                </Field>
+
+                <button
+                  type="submit"
+                  disabled={savingTranscript}
+                  className="self-start rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-50"
+                >
+                  {savingTranscript ? 'שומר...' : transcript ? 'עדכון תמליל' : 'שמירת תמליל'}
+                </button>
+              </>
+            )}
+          </Section>
+        </form>
+      )}
+    </div>
   )
 }

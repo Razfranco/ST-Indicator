@@ -46,3 +46,17 @@ export type MentorshipMeeting = {
 export type MentorshipMeetingInsert = Omit<MentorshipMeeting, 'id' | 'created_at'> &
   Partial<Pick<MentorshipMeeting, 'id' | 'created_at'>>
 export type MentorshipMeetingUpdate = Partial<MentorshipMeetingInsert>
+
+export type MeetingTranscript = {
+  id: string
+  created_at: string
+  meeting_id: string
+  transcript_text: string
+  filename: string | null
+  uploaded_by: string
+  uploaded_at: string
+}
+
+export type MeetingTranscriptInsert = Omit<MeetingTranscript, 'id' | 'created_at'> &
+  Partial<Pick<MeetingTranscript, 'id' | 'created_at'>>
+export type MeetingTranscriptUpdate = Partial<MeetingTranscriptInsert>
