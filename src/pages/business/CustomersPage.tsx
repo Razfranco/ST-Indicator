@@ -32,6 +32,14 @@ const statusLabel: Record<CustomerEffectiveStatus, string> = {
 
 const STATUSES: CustomerEffectiveStatus[] = ['active', 'expired', 'paused', 'cancelled']
 
+/** תווית סטטוס לתצוגה — ללקוח מוקפא (עם נתוני הקפאה שמורים) מציגה גם את כמות הימים הקפואים */
+function statusDisplayLabel(effectiveStatus: CustomerEffectiveStatus, customer: Customer): string {
+  if (effectiveStatus === 'paused' && customer.frozen_remaining_days != null) {
+    return `מוקפא — ${customer.frozen_remaining_days} ימים`
+  }
+  return statusLabel[effectiveStatus]
+}
+
 type AlertFilter = '' | 'has' | 'none'
 
 type SortField = 'full_name' | 'status' | 'plan' | 'period' | 'subscription_end_date' | 'mentor'
@@ -350,7 +358,7 @@ export function CustomersPage() {
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className={`border-transparent ${statusClass[effectiveStatus]}`}>
-                          {statusLabel[effectiveStatus]}
+                          {statusDisplayLabel(effectiveStatus, c)}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-muted-foreground" dir="ltr">
@@ -424,7 +432,7 @@ function CustomerCard({
           {c.full_name}
         </Link>
         <Badge variant="outline" className={`border-transparent ${statusClass[effectiveStatus]}`}>
-          {statusLabel[effectiveStatus]}
+          {statusDisplayLabel(effectiveStatus, c)}
         </Badge>
       </div>
 

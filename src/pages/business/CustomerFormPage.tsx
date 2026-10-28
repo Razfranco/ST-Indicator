@@ -3,8 +3,8 @@ import type { FormEvent } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabaseClient'
 import { useCustomerBillings } from '../../lib/useCustomerBillings'
-import { daysUntil } from '../../lib/businessStats'
-import { ShieldAlert } from 'lucide-react'
+import { daysUntil, dateInNDays, todayDateString } from '../../lib/businessStats'
+import { ShieldAlert, Snowflake } from 'lucide-react'
 import { Section, Field, inputClass } from '../../components/BusinessFormControls'
 import { Button } from '../../components/ui/button'
 import { Alert, AlertDescription } from '../../components/ui/alert'
@@ -47,6 +47,8 @@ interface FormState {
   access: string
   password: string
   access_removed_at: string | null
+  frozen_remaining_days: number | null
+  frozen_at: string | null
 }
 
 const initialState: FormState = {
@@ -65,6 +67,8 @@ const initialState: FormState = {
   access: '',
   password: '',
   access_removed_at: null,
+  frozen_remaining_days: null,
+  frozen_at: null,
 }
 
 interface BillingFormState {
@@ -136,6 +140,8 @@ export function CustomerFormPage() {
           access: data.access,
           password: data.password ?? '',
           access_removed_at: data.access_removed_at,
+          frozen_remaining_days: data.frozen_remaining_days,
+          frozen_at: data.frozen_at,
         })
         setLoading(false)
       })
@@ -165,6 +171,59 @@ export function CustomerFormPage() {
     }
     update('access_removed_at', now)
     toast.add({ title: 'סומן: גישה הוסרה', type: 'success' })
+  }
+
+  const isFrozen = form.status === 'paused' && form.frozen_remaining_days != null
+  const isPausedWithoutFreeze = form.status === 'paused' && form.frozen_remaining_days == null
+
+  const [freezing, setFreezing] = useState(false)
+  const [unfreezing, setUnfreezing] = useState(false)
+
+  async function handleFreeze() {
+    if (!id || daysLeft == null) return
+    setFreezing(true)
+    const payload = { status: 'paused' as const, frozen_remaining_days: daysLeft, frozen_at: todayDateString() }
+    const { error } = await supabase.from('customers').update(payload).eq('id', id)
+    setFreezing(false)
+    if (error) {
+      toast.add({ title: 'שגיאה בהקפאת המנוי', description: error.message, type: 'error' })
+      return
+    }
+    setForm((f) => ({ ...f, ...payload }))
+    toast.add({ title: `המנוי הוקפא — נותרו ${daysLeft} ימים קפואים`, type: 'success' })
+  }
+
+  async function handleUnfreeze() {
+    if (!id || form.frozen_remaining_days == null) return
+    setUnfreezing(true)
+    const newEndDate = dateInNDays(form.frozen_remaining_days)
+    const payload = {
+      status: 'active' as const,
+      subscription_end_date: newEndDate,
+      frozen_remaining_days: null,
+      frozen_at: null,
+    }
+    const { error } = await supabase.from('customers').update(payload).eq('id', id)
+    setUnfreezing(false)
+    if (error) {
+      toast.add({ title: 'שגיאה בשחרור ההקפאה', description: error.message, type: 'error' })
+      return
+    }
+    setForm((f) => ({ ...f, ...payload }))
+    toast.add({ title: `ההקפאה שוחררה — תאריך סיום המנוי עודכן ל-${newEndDate}`, type: 'success' })
+  }
+
+  async function handleUnpauseWithoutFreeze() {
+    if (!id) return
+    setUnfreezing(true)
+    const { error } = await supabase.from('customers').update({ status: 'active' }).eq('id', id)
+    setUnfreezing(false)
+    if (error) {
+      toast.add({ title: 'שגיאה בשינוי הסטטוס', description: error.message, type: 'error' })
+      return
+    }
+    update('status', 'active')
+    toast.add({ title: 'הלקוח הוחזר לסטטוס פעיל', type: 'success' })
   }
 
   const customerBillings = useMemo(
@@ -204,6 +263,10 @@ export function CustomerFormPage() {
       // כדי שהתראה תוכל לחזור אם המנוי יפוג שוב בעתיד.
       access_removed_at:
         form.status === 'active' && daysUntil(form.subscription_end_date) < 0 ? form.access_removed_at : null,
+      // נתוני הקפאה רלוונטיים רק בזמן שהסטטוס 'מושהה'. אם הסטטוס שונה כאן ידנית
+      // (לא דרך כפתור השחרור הייעודי) — מנקים אותם כדי שלא יישארו נתונים לא עקביים.
+      frozen_remaining_days: form.status === 'paused' ? form.frozen_remaining_days : null,
+      frozen_at: form.status === 'paused' ? form.frozen_at : null,
     }
 
     if (id) {
@@ -316,6 +379,44 @@ export function CustomerFormPage() {
             <AlertDescription className="text-primary">
               סומן כ"גישה הוסרה" בתאריך {new Date(form.access_removed_at).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' })}.
             </AlertDescription>
+          </Alert>
+        )}
+
+        {isEditing && form.status === 'active' && !isExpired && (
+          <Alert className="flex items-start gap-3">
+            <Snowflake className="mt-0.5 h-5 w-5 shrink-0 text-sky-700" />
+            <div className="flex flex-1 flex-wrap items-center justify-between gap-3">
+              <AlertDescription>
+                הקפאת מנוי שומרת את {daysLeft} הימים שנותרו, ומחדשת אותם מהתאריך שבו תשחרר/י את ההקפאה.
+              </AlertDescription>
+              <Button type="button" variant="outline" size="sm" disabled={freezing} onClick={handleFreeze}>
+                {freezing ? 'מקפיא...' : 'הקפאת מנוי'}
+              </Button>
+            </div>
+          </Alert>
+        )}
+
+        {isEditing && isFrozen && (
+          <Alert className="flex items-start gap-3 border-sky-300 bg-sky-50">
+            <Snowflake className="mt-0.5 h-5 w-5 shrink-0 text-sky-700" />
+            <div className="flex flex-1 flex-wrap items-center justify-between gap-3">
+              <AlertDescription className="text-sky-800">
+                המנוי מוקפא {form.frozen_at ? `מתאריך ${form.frozen_at}` : ''} עם {form.frozen_remaining_days} ימים
+                שמורים. בשחרור, תאריך סיום המנוי יעודכן ל-{dateInNDays(form.frozen_remaining_days ?? 0)}.
+              </AlertDescription>
+              <Button type="button" size="sm" disabled={unfreezing} onClick={handleUnfreeze}>
+                {unfreezing ? 'משחרר...' : 'שחרור הקפאה'}
+              </Button>
+            </div>
+          </Alert>
+        )}
+
+        {isEditing && isPausedWithoutFreeze && (
+          <Alert className="flex items-center justify-between gap-3">
+            <AlertDescription>הלקוח מושהה ידנית (בלי נתוני הקפאה שמורים — לא דרך "הקפאת מנוי").</AlertDescription>
+            <Button type="button" variant="outline" size="sm" disabled={unfreezing} onClick={handleUnpauseWithoutFreeze}>
+              {unfreezing ? 'מעדכן...' : 'חזרה לפעיל'}
+            </Button>
           </Alert>
         )}
 
@@ -449,14 +550,15 @@ export function CustomerFormPage() {
             <Field
               label="תאריך סיום מנוי"
               required
-              hint={daysLeft != null ? `נותרו ${daysLeft} ימים` : undefined}
+              hint={isFrozen ? 'קפוא — ישוחזר אוטומטית בשחרור ההקפאה' : daysLeft != null ? `נותרו ${daysLeft} ימים` : undefined}
             >
               <input
                 type="date"
                 required
+                disabled={isFrozen}
                 value={form.subscription_end_date}
                 onChange={(e) => update('subscription_end_date', e.target.value)}
-                className={inputClass}
+                className={`${inputClass} disabled:cursor-not-allowed disabled:opacity-60`}
               />
             </Field>
             <Field label="מנטור" required>

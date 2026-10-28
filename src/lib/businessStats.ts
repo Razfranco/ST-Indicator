@@ -22,6 +22,18 @@ export function daysUntil(date: string | Date): number {
   return Math.round((targetMidnight - todayMidnight) / 86400000)
 }
 
+/** תאריך (YYYY-MM-DD) בעוד N ימים מהיום — לשימוש בחישובי הקפאה/שחרור מנוי */
+export function dateInNDays(days: number): string {
+  const d = new Date()
+  d.setDate(d.getDate() + days)
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
+}
+
+/** תאריך היום בפורמט YYYY-MM-DD */
+export function todayDateString(): string {
+  return dateInNDays(0)
+}
+
 /**
  * סטטוס הלקוח כפי שיש להציג אותו כרגע: 'active' שכבר עבר את תאריך סיום המנוי
  * מוצג כ-'expired', בלי לשמור זאת ב-DB (הוא יכול להשתנות בלי שאף אחד יערוך את הרשומה).

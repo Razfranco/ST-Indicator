@@ -19,6 +19,8 @@ export type Customer = {
   access: string
   password: string | null
   access_removed_at: string | null
+  frozen_remaining_days: number | null
+  frozen_at: string | null
 }
 
 export type CustomerInsert = Omit<Customer, 'id' | 'created_at'> &
