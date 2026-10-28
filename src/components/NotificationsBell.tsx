@@ -22,17 +22,21 @@ function followUpReason(lead: Lead): string {
 }
 
 function trialReason(lead: Lead): string {
-  if (!lead.trial_week_expiry) return 'תקופת הניסיון פגה'
-  const days = Math.abs(daysUntil(lead.trial_week_expiry))
-  return `תקופת הניסיון פגה לפני ${days} ימים (${lead.trial_week_expiry})`
+  if (!lead.trial_week_expiry) return 'תקופת הניסיון מסתיימת'
+  const days = daysUntil(lead.trial_week_expiry)
+  if (days > 0) return `תקופת הניסיון מסתיימת בעוד ${days === 1 ? 'יום' : `${days} ימים`} (${lead.trial_week_expiry})`
+  if (days === 0) return `תקופת הניסיון מסתיימת היום (${lead.trial_week_expiry})`
+  return `תקופת הניסיון פגה לפני ${Math.abs(days)} ימים (${lead.trial_week_expiry})`
 }
 
 /**
- * חלונית התראות למודול העסקי: לקוחות שהמנוי שלהם פג וטרם סומנו "גישה הוסרה",
- * לידים שדורשים פולו-אפ (אין להם פולו-אפ קבוע, או שהפולו-אפ באיחור), ולידים
- * שתקופת הניסיון שלהם פגה — שלוש קבוצות נפרדות, כדי שלא יתערבבו. הרזולוציה
- * קורית אך ורק דרך הכניסה ללקוח/ליד עצמו — אין כאן כפתור "סגור התראה"
- * מהחלונית, כדי שלא תהיה אפשרות "לפטור" התראה בלי לטפל.
+ * חלונית התראות למודול העסקי, בשלוש קבוצות שלא מתערבבות: לקוחות שהמנוי שלהם
+ * פג וטרם סומנו "גישה הוסרה"; לידים "רלוונטי" שדורשים פולו-אפ (אין להם
+ * פולו-אפ קבוע, או שהפולו-אפ באיחור); ולידים ב"תקופת ניסיון" שהתקופה שלהם
+ * מסתיימת (מיום לפני התום ואילך, כולל אחרי שכבר פגה) — ליד בתקופת ניסיון
+ * נבדק אך ורק לפי תוקף התקופה, לא לפי פולו-אפ. הרזולוציה קורית אך ורק דרך
+ * הכניסה ללקוח/ליד עצמו — אין כאן כפתור "סגור התראה" מהחלונית, כדי שלא
+ * תהיה אפשרות "לפטור" התראה בלי לטפל.
  */
 export function NotificationsBell() {
   const { profile } = useAuth()
@@ -50,7 +54,7 @@ export function NotificationsBell() {
     [leads],
   )
   const trialLeads = useMemo(
-    () => leads.filter((l) => leadAttentionReason(l) === 'trial_expired'),
+    () => leads.filter((l) => leadAttentionReason(l) === 'trial_ending'),
     [leads],
   )
   const count = expiredCustomers.length + followUpLeads.length + trialLeads.length
@@ -92,7 +96,7 @@ export function NotificationsBell() {
     ),
     trialLeads.length > 0 && (
       <DropdownMenuGroup key="trial-leads">
-        <DropdownMenuLabel>לידים — תקופת ניסיון שפגה</DropdownMenuLabel>
+        <DropdownMenuLabel>לידים — תקופת ניסיון</DropdownMenuLabel>
         {trialLeads.map((l) => (
           <DropdownMenuItem
             key={l.id}
