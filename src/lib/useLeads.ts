@@ -16,7 +16,7 @@ export function useLeads() {
     let cancelled = false
 
     const channel = supabase
-      .channel('leads-changes')
+      .channel(`leads-changes-${crypto.randomUUID()}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'leads' },

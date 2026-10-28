@@ -18,7 +18,7 @@ export function useExpenses() {
     let cancelled = false
 
     const channel = supabase
-      .channel('additional-expenses-changes')
+      .channel(`additional-expenses-changes-${crypto.randomUUID()}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'additional_expenses' },

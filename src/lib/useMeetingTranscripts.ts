@@ -12,7 +12,7 @@ export function useMeetingTranscripts() {
     let cancelled = false
 
     const channel = supabase
-      .channel('meeting-transcripts-changes')
+      .channel(`meeting-transcripts-changes-${crypto.randomUUID()}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'meeting_transcripts' },

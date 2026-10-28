@@ -16,7 +16,7 @@ export function useStudents() {
     let cancelled = false
 
     const channel = supabase
-      .channel('students-changes')
+      .channel(`students-changes-${crypto.randomUUID()}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'students' },

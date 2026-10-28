@@ -16,7 +16,7 @@ export function useMentorAssignments() {
     let cancelled = false
 
     const channel = supabase
-      .channel('mentor-assignments-changes')
+      .channel(`mentor-assignments-changes-${crypto.randomUUID()}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'mentor_assignments' },

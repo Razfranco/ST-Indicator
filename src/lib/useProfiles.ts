@@ -11,7 +11,7 @@ export function useProfiles() {
     let cancelled = false
 
     const channel = supabase
-      .channel('profiles-admin')
+      .channel(`profiles-admin-${crypto.randomUUID()}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'profiles' },

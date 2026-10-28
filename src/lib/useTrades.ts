@@ -22,7 +22,7 @@ export function useTrades() {
     let cancelled = false
 
     const channel = supabase
-      .channel('trades-changes')
+      .channel(`trades-changes-${crypto.randomUUID()}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'trades' },

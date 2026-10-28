@@ -18,7 +18,7 @@ export function useTreasuryTransactions() {
     let cancelled = false
 
     const channel = supabase
-      .channel('treasury-transactions-changes')
+      .channel(`treasury-transactions-changes-${crypto.randomUUID()}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'treasury_transactions' },

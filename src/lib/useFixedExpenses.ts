@@ -16,7 +16,7 @@ export function useFixedExpenses() {
     let cancelled = false
 
     const channel = supabase
-      .channel('fixed-expenses-changes')
+      .channel(`fixed-expenses-changes-${crypto.randomUUID()}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'fixed_expenses' },

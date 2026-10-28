@@ -16,7 +16,7 @@ export function useMentorshipMeetings() {
     let cancelled = false
 
     const channel = supabase
-      .channel('mentorship-meetings-changes')
+      .channel(`mentorship-meetings-changes-${crypto.randomUUID()}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'mentorship_meetings' },

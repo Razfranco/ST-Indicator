@@ -16,7 +16,7 @@ export function useCustomers() {
     let cancelled = false
 
     const channel = supabase
-      .channel('customers-changes')
+      .channel(`customers-changes-${crypto.randomUUID()}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'customers' },
