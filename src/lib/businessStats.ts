@@ -4,6 +4,7 @@ import type {
   CustomerBilling,
   CustomerEffectiveStatus,
   FixedExpense,
+  Lead,
 } from '../types/business.types'
 
 const monthLabels = ['ינו', 'פבר', 'מרץ', 'אפר', 'מאי', 'יונ', 'יול', 'אוג', 'ספט', 'אוק', 'נוב', 'דצמ']
@@ -30,6 +31,14 @@ export function getEffectiveStatus(customer: Customer): CustomerEffectiveStatus 
     return 'expired'
   }
   return customer.status
+}
+
+/**
+ * לקוח שהמנוי שלו פג וטרם סומן "גישה הוסרה" — דורש טיפול בחלונית ההתראות.
+ * מתאפס אוטומטית ברגע שהמנוי מוארך (ראה 0016_notification_followup_flags.sql).
+ */
+export function needsAccessRemoval(customer: Customer): boolean {
+  return getEffectiveStatus(customer) === 'expired' && !customer.access_removed_at
 }
 
 function addMonths(dateStr: string, n: number): Date {
@@ -225,4 +234,17 @@ export function followUpCountdown(datetime: string): FollowUpCountdown {
     overdue,
     dueSoon: !overdue && absMs <= FOLLOW_UP_SOON_MS,
   }
+}
+
+/**
+ * ליד שדורש טיפול בחלונית ההתראות: לא "לא רלוונטי", לא סומן "טופל",
+ * ובנוסף אין לו פולו-אפ עתידי קבוע (אין תאריך פולו-אפ, הפולו-אפ באיחור,
+ * או שתוקף שבוע הניסיון שלו עבר).
+ */
+export function leadNeedsAttention(lead: Lead): boolean {
+  if (lead.status === 'not_relevant' || lead.handled) return false
+  if (!lead.follow_up_at) return true
+  if (followUpCountdown(lead.follow_up_at).overdue) return true
+  if (lead.status === 'trial_week' && lead.trial_week_expiry && daysUntil(lead.trial_week_expiry) < 0) return true
+  return false
 }

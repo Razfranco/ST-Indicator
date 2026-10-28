@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { Users } from 'lucide-react'
 import { useCustomers } from '../../lib/useCustomers'
 import { useCustomerBillings } from '../../lib/useCustomerBillings'
-import { getCustomerAlerts, getEffectiveStatus, daysUntil } from '../../lib/businessStats'
+import { getCustomerAlerts, getEffectiveStatus, daysUntil, needsAccessRemoval } from '../../lib/businessStats'
 import { FilterField, filterInputClass, SortHeader, CardField } from '../../components/BusinessFormControls'
 import type { SortDir } from '../../components/BusinessFormControls'
 import { StatTile } from '../../components/StatTile'
@@ -106,6 +106,7 @@ export function CustomersPage() {
         alerts: getCustomerAlerts(c, billings),
         days: daysUntil(c.subscription_end_date),
         effectiveStatus: getEffectiveStatus(c),
+        needsRemoval: needsAccessRemoval(c),
       })),
     [customers, billings],
   )
@@ -289,8 +290,15 @@ export function CustomersPage() {
       ) : (
         <>
           <div className="flex flex-col gap-3 sm:hidden">
-            {sorted.map(({ customer: c, alerts, days, effectiveStatus }) => (
-              <CustomerCard key={c.id} customer={c} alerts={alerts} days={days} effectiveStatus={effectiveStatus} />
+            {sorted.map(({ customer: c, alerts, days, effectiveStatus, needsRemoval }) => (
+              <CustomerCard
+                key={c.id}
+                customer={c}
+                alerts={alerts}
+                days={days}
+                effectiveStatus={effectiveStatus}
+                needsRemoval={needsRemoval}
+              />
             ))}
           </div>
 
@@ -322,12 +330,18 @@ export function CustomersPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sorted.map(({ customer: c, alerts, days, effectiveStatus }) => {
+                {sorted.map(({ customer: c, alerts, days, effectiveStatus, needsRemoval }) => {
                   const hasAlert = alerts.expiringSoon || alerts.billingDueSoon
                   return (
                     <TableRow
                       key={c.id}
-                      className={hasAlert ? 'border-e-2 border-e-orange-400 bg-orange-50' : ''}
+                      className={
+                        needsRemoval
+                          ? 'border-e-2 border-e-destructive bg-destructive/5'
+                          : hasAlert
+                            ? 'border-e-2 border-e-orange-400 bg-orange-50'
+                            : ''
+                      }
                     >
                       <TableCell>
                         <Link to={`/business/customers/${c.id}/edit`} className="font-medium text-foreground">
@@ -356,6 +370,11 @@ export function CustomersPage() {
                       <TableCell className="text-muted-foreground">{c.mentor}</TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
+                          {needsRemoval && (
+                            <Badge variant="outline" className="border-transparent bg-destructive/10 text-destructive">
+                              להסרת גישה
+                            </Badge>
+                          )}
                           {alerts.expiringSoon && (
                             <Badge variant="outline" className="border-transparent bg-orange-100 text-orange-800">
                               מנוי מסתיים
@@ -385,15 +404,21 @@ function CustomerCard({
   alerts,
   days,
   effectiveStatus,
+  needsRemoval,
 }: {
   customer: Customer
   alerts: { expiringSoon: boolean; billingDueSoon: boolean }
   days: number
   effectiveStatus: CustomerEffectiveStatus
+  needsRemoval: boolean
 }) {
   const hasAlert = alerts.expiringSoon || alerts.billingDueSoon
   return (
-    <Card className={`gap-2 p-3 shadow-sm ${hasAlert ? 'border-e-2 border-e-orange-400 bg-orange-50' : ''}`}>
+    <Card
+      className={`gap-2 p-3 shadow-sm ${
+        needsRemoval ? 'border-e-2 border-e-destructive bg-destructive/5' : hasAlert ? 'border-e-2 border-e-orange-400 bg-orange-50' : ''
+      }`}
+    >
       <div className="flex items-center justify-between gap-2 px-4">
         <Link to={`/business/customers/${c.id}/edit`} className="font-medium text-foreground">
           {c.full_name}
@@ -422,8 +447,13 @@ function CustomerCard({
         </CardField>
       </div>
 
-      {hasAlert && (
+      {(needsRemoval || hasAlert) && (
         <div className="flex flex-wrap gap-1 border-t border-border px-4 pt-2">
+          {needsRemoval && (
+            <Badge variant="outline" className="border-transparent bg-destructive/10 text-destructive">
+              להסרת גישה
+            </Badge>
+          )}
           {alerts.expiringSoon && (
             <Badge variant="outline" className="border-transparent bg-orange-100 text-orange-800">
               מנוי מסתיים

@@ -35,7 +35,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '../../components/ui/alert-dialog'
-import { followUpCountdown } from '../../lib/businessStats'
+import { followUpCountdown, leadNeedsAttention } from '../../lib/businessStats'
 import type { Lead, LeadStatus } from '../../types/business.types'
 
 function toDatetimeLocalValue(iso: string | null): string {
@@ -71,6 +71,7 @@ interface FormState {
   follow_up_at: string
   status: LeadStatus
   trial_week_expiry: string
+  handled: boolean
 }
 
 const emptyForm: FormState = {
@@ -82,6 +83,7 @@ const emptyForm: FormState = {
   follow_up_at: '',
   status: 'relevant',
   trial_week_expiry: '',
+  handled: false,
 }
 
 function toForm(lead: Lead): FormState {
@@ -94,6 +96,7 @@ function toForm(lead: Lead): FormState {
     follow_up_at: toDatetimeLocalValue(lead.follow_up_at),
     status: lead.status,
     trial_week_expiry: lead.trial_week_expiry ?? '',
+    handled: lead.handled,
   }
 }
 
@@ -107,6 +110,7 @@ function toPayload(form: FormState) {
     follow_up_at: form.follow_up_at ? new Date(form.follow_up_at).toISOString() : null,
     status: form.status,
     trial_week_expiry: form.status === 'trial_week' ? form.trial_week_expiry || null : null,
+    handled: form.handled,
   }
 }
 
@@ -157,16 +161,24 @@ function LeadCard({
   onDelete: () => void
   deleting: boolean
 }) {
+  const needsAttention = leadNeedsAttention(l)
   return (
-    <Card className="gap-2 p-3 shadow-sm">
+    <Card className={`gap-2 p-3 shadow-sm ${needsAttention ? 'border-e-2 border-e-destructive bg-destructive/5' : ''}`}>
       <div className="flex items-center justify-between gap-2 px-4">
         <div className="flex items-center gap-2">
           <Checkbox checked={selected} onCheckedChange={onToggleSelected} aria-label={`בחירת ${l.full_name}`} />
           <span className="font-medium text-foreground">{l.full_name}</span>
         </div>
-        <Badge variant="outline" className={`border-transparent ${statusClass[l.status]}`}>
-          {statusLabel[l.status]}
-        </Badge>
+        <div className="flex flex-wrap items-center gap-1">
+          {needsAttention && (
+            <Badge variant="outline" className="border-transparent bg-destructive/10 text-destructive">
+              דורש טיפול
+            </Badge>
+          )}
+          <Badge variant="outline" className={`border-transparent ${statusClass[l.status]}`}>
+            {statusLabel[l.status]}
+          </Badge>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-x-3 gap-y-2 px-4 text-xs">
@@ -307,6 +319,15 @@ function LeadFormFields({
           className={inputClass}
         />
       </Field>
+      <label className="flex w-fit items-center gap-2 rounded-lg border border-input bg-card px-3 py-2">
+        <input
+          type="checkbox"
+          checked={form.handled}
+          onChange={(e) => update('handled', e.target.checked)}
+          className="h-4 w-4 accent-primary"
+        />
+        <span className="text-sm text-foreground">טופל — לא דורש טיפול בחלונית ההתראות</span>
+      </label>
     </>
   )
 }
@@ -328,6 +349,8 @@ export function LeadsPage() {
   const [pendingDeleteIds, setPendingDeleteIds] = useState<string[] | null>(null)
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+
+  const [focusLeadId, setFocusLeadId] = useState(() => searchParams.get('focus'))
 
   const [nameFilter, setNameFilter] = useState(searchParams.get('name') ?? '')
   const [phoneFilter, setPhoneFilter] = useState(searchParams.get('phone') ?? '')
@@ -445,6 +468,16 @@ export function LeadsPage() {
     setEditingLead(null)
   }
 
+  useEffect(() => {
+    if (!focusLeadId) return
+    const lead = leads.find((l) => l.id === focusLeadId)
+    if (lead) {
+      openEdit(lead)
+      setFocusLeadId(null)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusLeadId, leads])
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     setSaving(true)
@@ -468,7 +501,17 @@ export function LeadsPage() {
     setSavingEdit(true)
     setEditError(null)
 
-    const { error } = await supabase.from('leads').update(toPayload(editForm)).eq('id', editingLead.id)
+    const payload = toPayload(editForm)
+    // פולו-אפ חדש שהוזז לעתיד ("הארכת תוקף") מאפס את "טופל" — זו הודעה חדשה שעדיין לא נסגרה.
+    if (
+      payload.follow_up_at &&
+      payload.follow_up_at !== editingLead.follow_up_at &&
+      new Date(payload.follow_up_at) > new Date()
+    ) {
+      payload.handled = false
+    }
+
+    const { error } = await supabase.from('leads').update(payload).eq('id', editingLead.id)
     setSavingEdit(false)
 
     if (error) {
@@ -638,8 +681,10 @@ export function LeadsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sorted.map((l) => (
-                  <TableRow key={l.id}>
+                {sorted.map((l) => {
+                  const needsAttention = leadNeedsAttention(l)
+                  return (
+                  <TableRow key={l.id} className={needsAttention ? 'border-e-2 border-e-destructive bg-destructive/5' : ''}>
                     <TableCell>
                       <Checkbox
                         checked={selectedIds.has(l.id)}
@@ -653,9 +698,16 @@ export function LeadsPage() {
                     </TableCell>
                     <TableCell className="text-muted-foreground">{l.source}</TableCell>
                     <TableCell>
-                      <Badge variant="outline" className={`border-transparent ${statusClass[l.status]}`}>
-                        {statusLabel[l.status]}
-                      </Badge>
+                      <div className="flex flex-wrap gap-1">
+                        {needsAttention && (
+                          <Badge variant="outline" className="border-transparent bg-destructive/10 text-destructive">
+                            דורש טיפול
+                          </Badge>
+                        )}
+                        <Badge variant="outline" className={`border-transparent ${statusClass[l.status]}`}>
+                          {statusLabel[l.status]}
+                        </Badge>
+                      </div>
                     </TableCell>
                     <TableCell className="text-muted-foreground" dir="ltr">
                       {l.status === 'trial_week' ? (l.trial_week_expiry ?? '—') : '—'}
@@ -685,7 +737,8 @@ export function LeadsPage() {
                       </Button>
                     </TableCell>
                   </TableRow>
-                ))}
+                  )
+                })}
               </TableBody>
             </Table>
           </Card>

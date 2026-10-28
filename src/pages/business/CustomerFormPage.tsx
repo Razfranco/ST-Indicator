@@ -4,6 +4,7 @@ import { useNavigate, useParams, Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabaseClient'
 import { useCustomerBillings } from '../../lib/useCustomerBillings'
 import { daysUntil } from '../../lib/businessStats'
+import { ShieldAlert } from 'lucide-react'
 import { Section, Field, inputClass } from '../../components/BusinessFormControls'
 import { Button } from '../../components/ui/button'
 import { Alert, AlertDescription } from '../../components/ui/alert'
@@ -45,6 +46,7 @@ interface FormState {
   mentor: string
   access: string
   password: string
+  access_removed_at: string | null
 }
 
 const initialState: FormState = {
@@ -62,6 +64,7 @@ const initialState: FormState = {
   mentor: '',
   access: '',
   password: '',
+  access_removed_at: null,
 }
 
 interface BillingFormState {
@@ -132,6 +135,7 @@ export function CustomerFormPage() {
           mentor: data.mentor,
           access: data.access,
           password: data.password ?? '',
+          access_removed_at: data.access_removed_at,
         })
         setLoading(false)
       })
@@ -144,6 +148,24 @@ export function CustomerFormPage() {
     () => (form.subscription_end_date ? daysUntil(form.subscription_end_date) : null),
     [form.subscription_end_date],
   )
+
+  const isExpired = form.status === 'active' && daysLeft != null && daysLeft < 0
+
+  const [markingAccessRemoved, setMarkingAccessRemoved] = useState(false)
+
+  async function handleMarkAccessRemoved() {
+    if (!id) return
+    setMarkingAccessRemoved(true)
+    const now = new Date().toISOString()
+    const { error } = await supabase.from('customers').update({ access_removed_at: now }).eq('id', id)
+    setMarkingAccessRemoved(false)
+    if (error) {
+      toast.add({ title: 'שגיאה בסימון "גישה הוסרה"', description: error.message, type: 'error' })
+      return
+    }
+    update('access_removed_at', now)
+    toast.add({ title: 'סומן: גישה הוסרה', type: 'success' })
+  }
 
   const customerBillings = useMemo(
     () => (id ? billings.filter((b) => b.customer_id === id) : []),
@@ -178,6 +200,10 @@ export function CustomerFormPage() {
       mentor: form.mentor.trim(),
       access: form.access.trim(),
       password: form.password || null,
+      // כל עוד המנוי אינו פג יותר (הוארך/שונה סטטוס) — מאפסים את סימון "גישה הוסרה",
+      // כדי שהתראה תוכל לחזור אם המנוי יפוג שוב בעתיד.
+      access_removed_at:
+        form.status === 'active' && daysUntil(form.subscription_end_date) < 0 ? form.access_removed_at : null,
     }
 
     if (id) {
@@ -262,6 +288,34 @@ export function CustomerFormPage() {
         {error && (
           <Alert variant="destructive">
             <AlertDescription className="text-destructive">{error}</AlertDescription>
+          </Alert>
+        )}
+
+        {isEditing && isExpired && !form.access_removed_at && (
+          <Alert variant="destructive" className="flex items-start gap-3">
+            <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0" />
+            <div className="flex flex-1 flex-wrap items-center justify-between gap-3">
+              <AlertDescription className="text-destructive">
+                המנוי של הלקוח הזה פג. סמן/י שהגישה הוסרה בפועל, או הארך/י את תאריך סיום המנוי למטה ושמור/י.
+              </AlertDescription>
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                disabled={markingAccessRemoved}
+                onClick={handleMarkAccessRemoved}
+              >
+                {markingAccessRemoved ? 'מסמן...' : 'סמן גישה הוסרה'}
+              </Button>
+            </div>
+          </Alert>
+        )}
+
+        {isEditing && isExpired && form.access_removed_at && (
+          <Alert className="border-primary/30 bg-primary/5">
+            <AlertDescription className="text-primary">
+              סומן כ"גישה הוסרה" בתאריך {new Date(form.access_removed_at).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' })}.
+            </AlertDescription>
           </Alert>
         )}
 

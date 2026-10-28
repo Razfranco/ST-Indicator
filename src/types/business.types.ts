@@ -18,6 +18,7 @@ export type Customer = {
   mentor: string
   access: string
   password: string | null
+  access_removed_at: string | null
 }
 
 export type CustomerInsert = Omit<Customer, 'id' | 'created_at'> &
@@ -52,6 +53,7 @@ export type Lead = {
   follow_up_at: string | null
   status: LeadStatus
   trial_week_expiry: string | null
+  handled: boolean
 }
 
 export type LeadInsert = Omit<Lead, 'id' | 'created_at'> & Partial<Pick<Lead, 'id' | 'created_at'>>

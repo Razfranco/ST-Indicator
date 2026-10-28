@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { NavLink } from 'react-router-dom'
+import { NotificationsBell } from './NotificationsBell'
 
 const tabs = [
   { to: '/business/customers', label: 'לקוחות' },
@@ -12,21 +13,24 @@ const tabs = [
 export function BusinessLayout({ children }: { children: ReactNode }) {
   return (
     <div className="flex flex-col gap-4 pb-6">
-      <nav className="flex gap-1 overflow-x-auto rounded-lg border border-border bg-muted p-1">
-        {tabs.map((tab) => (
-          <NavLink
-            key={tab.to}
-            to={tab.to}
-            className={({ isActive }) =>
-              `whitespace-nowrap rounded-md px-4 py-1.5 text-sm font-medium transition ${
-                isActive ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
-              }`
-            }
-          >
-            {tab.label}
-          </NavLink>
-        ))}
-      </nav>
+      <div className="flex items-center gap-2">
+        <nav className="flex flex-1 gap-1 overflow-x-auto rounded-lg border border-border bg-muted p-1">
+          {tabs.map((tab) => (
+            <NavLink
+              key={tab.to}
+              to={tab.to}
+              className={({ isActive }) =>
+                `whitespace-nowrap rounded-md px-4 py-1.5 text-sm font-medium transition ${
+                  isActive ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
+                }`
+              }
+            >
+              {tab.label}
+            </NavLink>
+          ))}
+        </nav>
+        <NotificationsBell />
+      </div>
       {children}
     </div>
   )
