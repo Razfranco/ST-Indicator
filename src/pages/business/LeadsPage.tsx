@@ -350,8 +350,6 @@ export function LeadsPage() {
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
-  const [focusLeadId, setFocusLeadId] = useState(() => searchParams.get('focus'))
-
   const [nameFilter, setNameFilter] = useState(searchParams.get('name') ?? '')
   const [phoneFilter, setPhoneFilter] = useState(searchParams.get('phone') ?? '')
   const [sourceFilter, setSourceFilter] = useState(searchParams.get('source') ?? '')
@@ -469,14 +467,21 @@ export function LeadsPage() {
   }
 
   useEffect(() => {
-    if (!focusLeadId) return
-    const lead = leads.find((l) => l.id === focusLeadId)
-    if (lead) {
-      openEdit(lead)
-      setFocusLeadId(null)
-    }
+    const focusId = searchParams.get('focus')
+    if (!focusId) return
+    const lead = leads.find((l) => l.id === focusId)
+    if (!lead) return
+    openEdit(lead)
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        next.delete('focus')
+        return next
+      },
+      { replace: true },
+    )
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusLeadId, leads])
+  }, [searchParams, leads])
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
