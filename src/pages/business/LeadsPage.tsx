@@ -49,7 +49,7 @@ const STATUSES: LeadStatus[] = ['relevant', 'not_relevant', 'trial_week']
 const statusLabel: Record<LeadStatus, string> = {
   relevant: 'רלוונטי',
   not_relevant: 'לא רלוונטי',
-  trial_week: 'שבוע ניסיון',
+  trial_week: 'תקופת ניסיון',
 }
 const statusClass: Record<LeadStatus, string> = {
   relevant: 'bg-primary/10 text-primary',
@@ -186,7 +186,7 @@ function LeadCard({
           <span dir="ltr">{l.phone}</span>
         </CardField>
         <CardField label="מקור">{l.source}</CardField>
-        <CardField label="תוקף שבוע ניסיון">
+        <CardField label="תוקף תקופת ניסיון">
           <span dir="ltr">{l.status === 'trial_week' ? (l.trial_week_expiry ?? '—') : '—'}</span>
         </CardField>
         <CardField label="מועד פולו-אפ">
@@ -300,7 +300,7 @@ function LeadFormFields({
           </div>
         </Field>
         {form.status === 'trial_week' && (
-          <Field label="תוקף שבוע ניסיון" required>
+          <Field label="תוקף תקופת ניסיון" required>
             <input
               type="date"
               required
@@ -662,7 +662,7 @@ export function LeadsPage() {
                   <SortHeader label="מקור" field="source" current={sortField} dir={sortDir} onClick={toggleSort} />
                   <SortHeader label="סטטוס" field="status" current={sortField} dir={sortDir} onClick={toggleSort} />
                   <SortHeader
-                    label="תוקף שבוע ניסיון"
+                    label="תוקף תקופת ניסיון"
                     field="trial_week_expiry"
                     current={sortField}
                     dir={sortDir}

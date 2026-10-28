@@ -236,15 +236,23 @@ export function followUpCountdown(datetime: string): FollowUpCountdown {
   }
 }
 
+export type LeadAttentionReason = 'missing_follow_up' | 'overdue_follow_up' | 'trial_expired'
+
 /**
- * ליד שדורש טיפול בחלונית ההתראות: לא "לא רלוונטי", לא סומן "טופל",
- * ובנוסף אין לו פולו-אפ עתידי קבוע (אין תאריך פולו-אפ, הפולו-אפ באיחור,
- * או שתוקף שבוע הניסיון שלו עבר).
+ * הסיבה (אם יש) שליד דורש טיפול בחלונית ההתראות: לא "לא רלוונטי", לא סומן
+ * "טופל", ובנוסף אין לו פולו-אפ עתידי קבוע (אין תאריך פולו-אפ, הפולו-אפ
+ * באיחור), או שתוקף תקופת הניסיון שלו עבר. הפולו-אפ נבדק קודם — ליד
+ * בתקופת ניסיון עם פולו-אפ באיחור מסווג כ"פולו-אפ", לא כפול.
  */
+export function leadAttentionReason(lead: Lead): LeadAttentionReason | null {
+  if (lead.status === 'not_relevant' || lead.handled) return null
+  if (!lead.follow_up_at) return 'missing_follow_up'
+  if (followUpCountdown(lead.follow_up_at).overdue) return 'overdue_follow_up'
+  if (lead.status === 'trial_week' && lead.trial_week_expiry && daysUntil(lead.trial_week_expiry) < 0) return 'trial_expired'
+  return null
+}
+
+/** ליד שדורש טיפול בחלונית ההתראות — ראה leadAttentionReason לפירוט הסיבה */
 export function leadNeedsAttention(lead: Lead): boolean {
-  if (lead.status === 'not_relevant' || lead.handled) return false
-  if (!lead.follow_up_at) return true
-  if (followUpCountdown(lead.follow_up_at).overdue) return true
-  if (lead.status === 'trial_week' && lead.trial_week_expiry && daysUntil(lead.trial_week_expiry) < 0) return true
-  return false
+  return leadAttentionReason(lead) !== null
 }
