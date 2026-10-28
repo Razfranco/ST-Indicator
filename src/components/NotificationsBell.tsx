@@ -29,8 +29,12 @@ function trialReason(lead: Lead): string {
   return `תקופת הניסיון פגה לפני ${Math.abs(days)} ימים (${lead.trial_week_expiry})`
 }
 
-/** תיאור באדום רק עבור מועד שכבר עבר (מנוי/פולו-אפ/תקופת ניסיון) — לא עבור מועד קרוב שעוד לא הגיע */
-const reasonClass = (overdue: boolean) => (overdue ? 'text-destructive' : 'text-muted-foreground')
+/**
+ * תיאור באדום רק עבור מועד שכבר עבר (מנוי/פולו-אפ/תקופת ניסיון) — לא עבור מועד
+ * קרוב שעוד לא הגיע. ה-important (!) דרוש כי DropdownMenuItem כופה
+ * text-accent-foreground על כל הילדים כש-הפריט ב-focus (ניווט מקלדת/ריחוף).
+ */
+const reasonClass = (overdue: boolean) => (overdue ? 'text-destructive!' : 'text-muted-foreground')
 
 /**
  * חלונית התראות למודול העסקי, בשלוש קבוצות שלא מתערבבות: לקוחות שהמנוי שלהם
@@ -76,7 +80,7 @@ export function NotificationsBell() {
             className="flex-col items-start gap-0.5 py-2"
           >
             <span className="font-medium text-foreground">{c.full_name}</span>
-            <span className="text-xs text-destructive">
+            <span className="text-xs text-destructive!">
               המנוי פג לפני {Math.abs(daysUntil(c.subscription_end_date))} ימים — יש לסמן &quot;גישה הוסרה&quot; או להאריך
             </span>
           </DropdownMenuItem>
