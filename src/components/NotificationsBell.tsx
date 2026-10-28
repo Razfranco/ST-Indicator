@@ -17,7 +17,7 @@ import {
 import type { Lead } from '../types/business.types'
 
 function followUpReason(lead: Lead): string {
-  if (!lead.follow_up_at) return 'אין תאריך פולו-אפ קבוע'
+  if (!lead.follow_up_at) return ''
   return `פולו-אפ ${followUpCountdown(lead.follow_up_at).label}`
 }
 
@@ -29,13 +29,17 @@ function trialReason(lead: Lead): string {
   return `תקופת הניסיון פגה לפני ${Math.abs(days)} ימים (${lead.trial_week_expiry})`
 }
 
+/** תיאור באדום רק עבור מועד שכבר עבר (מנוי/פולו-אפ/תקופת ניסיון) — לא עבור מועד קרוב שעוד לא הגיע */
+const reasonClass = (overdue: boolean) => (overdue ? 'text-destructive' : 'text-muted-foreground')
+
 /**
  * חלונית התראות למודול העסקי, בשלוש קבוצות שלא מתערבבות: לקוחות שהמנוי שלהם
- * פג וטרם סומנו "גישה הוסרה"; לידים "רלוונטי" שדורשים פולו-אפ (אין להם
- * פולו-אפ קבוע, או שהפולו-אפ באיחור); ולידים ב"תקופת ניסיון" שהתקופה שלהם
- * מסתיימת (מיום לפני התום ואילך, כולל אחרי שכבר פגה) — ליד בתקופת ניסיון
- * נבדק אך ורק לפי תוקף התקופה, לא לפי פולו-אפ. הרזולוציה קורית אך ורק דרך
- * הכניסה ללקוח/ליד עצמו — אין כאן כפתור "סגור התראה" מהחלונית, כדי שלא
+ * פג וטרם סומנו "גישה הוסרה"; לידים "רלוונטי" עם פולו-אפ קבוע שקרוב (בתוך
+ * שבוע) או שכבר עבר — ליד בלי פולו-אפ קבוע כלל לא מקבל התראה; ולידים
+ * ב"תקופת ניסיון" שהתקופה שלהם מסתיימת (מיום לפני התום ואילך, כולל אחרי
+ * שכבר פגה) — נבדק אך ורק לפי תוקף התקופה, לא לפי פולו-אפ. תיאור באדום =
+ * מועד שכבר עבר; תיאור רגיל = מועד קרוב שעוד לא הגיע. הרזולוציה קורית אך ורק
+ * דרך הכניסה ללקוח/ליד עצמו — אין כאן כפתור "סגור התראה" מהחלונית, כדי שלא
  * תהיה אפשרות "לפטור" התראה בלי לטפל.
  */
 export function NotificationsBell() {
@@ -49,7 +53,7 @@ export function NotificationsBell() {
     () =>
       leads.filter((l) => {
         const reason = leadAttentionReason(l)
-        return reason === 'missing_follow_up' || reason === 'overdue_follow_up'
+        return reason === 'follow_up_soon' || reason === 'overdue_follow_up'
       }),
     [leads],
   )
@@ -72,7 +76,7 @@ export function NotificationsBell() {
             className="flex-col items-start gap-0.5 py-2"
           >
             <span className="font-medium text-foreground">{c.full_name}</span>
-            <span className="text-xs text-muted-foreground">
+            <span className="text-xs text-destructive">
               המנוי פג לפני {Math.abs(daysUntil(c.subscription_end_date))} ימים — יש לסמן &quot;גישה הוסרה&quot; או להאריך
             </span>
           </DropdownMenuItem>
@@ -89,7 +93,9 @@ export function NotificationsBell() {
             className="flex-col items-start gap-0.5 py-2"
           >
             <span className="font-medium text-foreground">{l.full_name}</span>
-            <span className="text-xs text-muted-foreground">{followUpReason(l)}</span>
+            <span className={`text-xs ${reasonClass(leadAttentionReason(l) === 'overdue_follow_up')}`}>
+              {followUpReason(l)}
+            </span>
           </DropdownMenuItem>
         ))}
       </DropdownMenuGroup>
@@ -104,7 +110,9 @@ export function NotificationsBell() {
             className="flex-col items-start gap-0.5 py-2"
           >
             <span className="font-medium text-foreground">{l.full_name}</span>
-            <span className="text-xs text-muted-foreground">{trialReason(l)}</span>
+            <span className={`text-xs ${reasonClass(Boolean(l.trial_week_expiry) && daysUntil(l.trial_week_expiry!) < 0)}`}>
+              {trialReason(l)}
+            </span>
           </DropdownMenuItem>
         ))}
       </DropdownMenuGroup>
