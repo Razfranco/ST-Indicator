@@ -7,6 +7,7 @@ import { useStudents } from '../../lib/useStudents'
 import { useMentorshipMeetings } from '../../lib/useMentorshipMeetings'
 import { useMentorAssignments } from '../../lib/useMentorAssignments'
 import { useProfiles } from '../../lib/useProfiles'
+import { getEffectiveStatus } from '../../lib/businessStats'
 import { StatTile } from '../../components/StatTile'
 import { Card } from '../../components/ui/card'
 import { Badge } from '../../components/ui/badge'
@@ -62,7 +63,7 @@ export function CoverageReportPage() {
     }
 
     const built = customers
-      .filter((c) => isLiveTrackPlan(c.plan))
+      .filter((c) => isLiveTrackPlan(c.plan) && getEffectiveStatus(c) === 'active')
       .map((c) => {
         const student = students.find((s) => s.customer_id === c.id) ?? null
         const meeting = student ? nextMeetingByStudentId.get(student.id) ?? null : null
@@ -99,7 +100,7 @@ export function CoverageReportPage() {
       <div>
         <h2 className="font-heading text-xl font-semibold">בקרת ליווי</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          כל לקוחות מסלול גולד/פלטינום, עם סימון למי שאין לו פגישת ליווי משובצת לשבוע הקרוב.
+          כל הלקוחות הפעילים במסלול גולד/פלטינום, עם סימון למי שאין לו פגישת ליווי משובצת לשבוע הקרוב.
         </p>
       </div>
 
