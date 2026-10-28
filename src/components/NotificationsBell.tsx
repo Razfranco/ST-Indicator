@@ -8,6 +8,7 @@ import { daysUntil, followUpCountdown, leadNeedsAttention, needsAccessRemoval } 
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -59,7 +60,7 @@ export function NotificationsBell() {
         ) : (
           <>
             {expiredCustomers.length > 0 && (
-              <>
+              <DropdownMenuGroup>
                 <DropdownMenuLabel>מנויים שפגו — דורשים טיפול</DropdownMenuLabel>
                 {expiredCustomers.map((c) => (
                   <DropdownMenuItem
@@ -73,11 +74,11 @@ export function NotificationsBell() {
                     </span>
                   </DropdownMenuItem>
                 ))}
-              </>
+              </DropdownMenuGroup>
             )}
             {expiredCustomers.length > 0 && attentionLeads.length > 0 && <DropdownMenuSeparator />}
             {attentionLeads.length > 0 && (
-              <>
+              <DropdownMenuGroup>
                 <DropdownMenuLabel>לידים שדורשים טיפול</DropdownMenuLabel>
                 {attentionLeads.map((l) => (
                   <DropdownMenuItem
@@ -89,7 +90,7 @@ export function NotificationsBell() {
                     <span className="text-xs text-muted-foreground">{leadReason(l)}</span>
                   </DropdownMenuItem>
                 ))}
-              </>
+              </DropdownMenuGroup>
             )}
           </>
         )}
