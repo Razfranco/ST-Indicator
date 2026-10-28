@@ -48,6 +48,9 @@ const MentoringStudentsPage = lazy(() =>
 const AssignmentsPage = lazy(() =>
   import('./pages/mentoring/AssignmentsPage').then((m) => ({ default: m.AssignmentsPage })),
 )
+const CoverageReportPage = lazy(() =>
+  import('./pages/mentoring/CoverageReportPage').then((m) => ({ default: m.CoverageReportPage })),
+)
 
 function PageFallback() {
   return <p className="py-10 text-center text-muted-foreground">טוען...</p>
@@ -182,6 +185,24 @@ function App() {
                       <Suspense fallback={<PageFallback />}>
                         <MentoringLayout>
                           <AssignmentsPage />
+                        </MentoringLayout>
+                      </Suspense>
+                    </Layout>
+                  </AdminRoute>
+                </MentoringRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/mentoring/coverage"
+            element={
+              <ProtectedRoute>
+                <MentoringRoute>
+                  <AdminRoute>
+                    <Layout navItems={[]}>
+                      <Suspense fallback={<PageFallback />}>
+                        <MentoringLayout>
+                          <CoverageReportPage />
                         </MentoringLayout>
                       </Suspense>
                     </Layout>

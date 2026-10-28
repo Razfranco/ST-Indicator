@@ -4,6 +4,7 @@ import { GraduationCap } from 'lucide-react'
 import { supabase } from '../../lib/supabaseClient'
 import { useAuth } from '../../context/AuthContext'
 import { useStudents } from '../../lib/useStudents'
+import { useCustomers } from '../../lib/useCustomers'
 import { Modal } from '../../components/Modal'
 import { Field, inputClass, FilterField, filterInputClass } from '../../components/BusinessFormControls'
 import { Card } from '../../components/ui/card'
@@ -40,20 +41,28 @@ interface FormState {
   phone: string
   status: StudentStatus
   notes: string
+  customer_id: string
 }
 
 function emptyForm(): FormState {
-  return { display_name: '', phone: '', status: 'active', notes: '' }
+  return { display_name: '', phone: '', status: 'active', notes: '', customer_id: '' }
 }
 
 function toForm(s: Student): FormState {
-  return { display_name: s.display_name, phone: s.phone ?? '', status: s.status, notes: s.notes ?? '' }
+  return {
+    display_name: s.display_name,
+    phone: s.phone ?? '',
+    status: s.status,
+    notes: s.notes ?? '',
+    customer_id: s.customer_id ?? '',
+  }
 }
 
 export function StudentsPage() {
   const { profile } = useAuth()
   const isAdmin = profile?.role === 'admin'
   const { students, loading, error: loadError } = useStudents()
+  const { customers } = useCustomers()
 
   const [nameFilter, setNameFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState<StudentStatus | ''>('')
@@ -81,6 +90,12 @@ export function StudentsPage() {
       }),
     [students, nameFilter, statusFilter],
   )
+
+  const customerOptions = useMemo(
+    () => [...customers].sort((a, b) => a.full_name.localeCompare(b.full_name, 'he')),
+    [customers],
+  )
+  const customerById = useMemo(() => new Map(customers.map((c) => [c.id, c])), [customers])
 
   const allVisibleSelected = filtered.length > 0 && filtered.every((s) => selectedIds.has(s.id))
 
@@ -126,6 +141,7 @@ export function StudentsPage() {
       phone: form.phone.trim() || null,
       status: form.status,
       notes: form.notes.trim() || null,
+      customer_id: form.customer_id || null,
     }
 
     const query = editing
@@ -255,6 +271,9 @@ export function StudentsPage() {
                   <div className="mt-1 flex flex-wrap gap-x-3 text-xs text-muted-foreground">
                     {s.phone && <span dir="ltr">{s.phone}</span>}
                     {s.notes && <span>{s.notes}</span>}
+                    {isAdmin && s.customer_id && customerById.get(s.customer_id) && (
+                      <span>לקוח: {customerById.get(s.customer_id)?.full_name}</span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -321,6 +340,22 @@ export function StudentsPage() {
               className={inputClass}
             />
           </Field>
+          {isAdmin && (
+            <Field label="לקוח מקושר (CRM)" hint="לצורך דוח בקרת ליווי — איזה לקוח משלם זה התלמיד הזה.">
+              <select
+                value={form.customer_id}
+                onChange={(e) => update('customer_id', e.target.value)}
+                className={inputClass}
+              >
+                <option value="">— ללא קישור —</option>
+                {customerOptions.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.full_name} ({c.plan})
+                  </option>
+                ))}
+              </select>
+            </Field>
+          )}
           <div className="flex gap-2">
             <Button type="submit" disabled={saving}>
               {saving ? 'שומר...' : editing ? 'עדכון' : 'יצירה'}

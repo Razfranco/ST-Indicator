@@ -7,6 +7,8 @@ export type Student = {
   phone: string | null
   status: StudentStatus
   notes: string | null
+  /** קישור ידני ללקוח במודול העסקי (CRM) — מנוהל ע"י אדמין בלבד */
+  customer_id: string | null
 }
 
 export type StudentInsert = Omit<Student, 'id' | 'created_at'> & Partial<Pick<Student, 'id' | 'created_at'>>

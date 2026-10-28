@@ -89,7 +89,7 @@ export function MeetingFormPage() {
   )
 
   const [form, setForm] = useState<FormState>({
-    student_id: '',
+    student_id: searchParams.get('student') ?? '',
     mentor_user_id: user?.id ?? '',
     date: searchParams.get('date') ?? todayDateInput(),
     time: nowTimeInput(),

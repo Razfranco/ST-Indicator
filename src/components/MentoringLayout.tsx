@@ -7,7 +7,10 @@ const baseTabs = [
   { to: '/mentoring/students', label: 'תלמידים' },
 ]
 
-const adminTabs = [{ to: '/mentoring/assignments', label: 'שיוכי מנטורים' }]
+const adminTabs = [
+  { to: '/mentoring/assignments', label: 'שיוכי מנטורים' },
+  { to: '/mentoring/coverage', label: 'בקרת ליווי' },
+]
 
 export function MentoringLayout({ children }: { children: ReactNode }) {
   const { profile } = useAuth()
