@@ -98,6 +98,18 @@ export function getCustomerAlerts(customer: Customer, billings: CustomerBilling[
 }
 
 /**
+ * לקוח פעיל שהמנוי שלו יסתיים בתוך שבוע (אך עדיין לא פג) — להתראה מוקדמת
+ * בחלונית ההתראות, לפני שהוא הופך ל"מנוי פג" (needsAccessRemoval). לא דורש
+ * את היסטוריית החיובים כמו getCustomerAlerts, לכן אפשר להשתמש בו גם במקומות
+ * שלא טוענים billings (כמו חלונית ההתראות).
+ */
+export function customerExpiringSoon(customer: Customer): boolean {
+  if (getEffectiveStatus(customer) !== 'active') return false
+  const daysLeft = daysUntil(customer.subscription_end_date)
+  return daysLeft >= 0 && daysLeft <= ALERT_WINDOW_DAYS
+}
+
+/**
  * כמה פעמים הוצאה קבועה (חוזרת) חלה בטווח תאריכים נתון [rangeStart, rangeEnd]
  * (כולל שני הקצוות), החל מ-start_date שלה. שימושי לכל טווח — חודש בודד או שנה שלמה.
  */
