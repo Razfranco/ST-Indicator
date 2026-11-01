@@ -198,15 +198,13 @@ function App() {
             element={
               <ProtectedRoute>
                 <MentoringRoute>
-                  <AdminRoute>
-                    <Layout navItems={[]}>
-                      <Suspense fallback={<PageFallback />}>
-                        <MentoringLayout>
-                          <CoverageReportPage />
-                        </MentoringLayout>
-                      </Suspense>
-                    </Layout>
-                  </AdminRoute>
+                  <Layout navItems={[]}>
+                    <Suspense fallback={<PageFallback />}>
+                      <MentoringLayout>
+                        <CoverageReportPage />
+                      </MentoringLayout>
+                    </Suspense>
+                  </Layout>
                 </MentoringRoute>
               </ProtectedRoute>
             }
