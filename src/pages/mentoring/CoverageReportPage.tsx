@@ -184,7 +184,7 @@ export function CoverageReportPage() {
 
       {!loading && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          <StatTile label={isAdmin ? 'סה&quot;כ במסלולי ליווי' : 'סה&quot;כ תלמידים'} value={String(rows.length)} />
+          <StatTile label={isAdmin ? 'סה"כ במסלולי ליווי' : 'סה"כ תלמידים'} value={String(rows.length)} />
           <StatTile
             label="דורשים טיפול"
             value={String(missingCount)}
