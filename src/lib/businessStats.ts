@@ -13,6 +13,16 @@ function pad2(n: number): string {
   return String(n).padStart(2, '0')
 }
 
+/**
+ * מסלולי "ליווי" שדורשים מעקב במודול המנטורינג — גולד/פלטינום בלבד, לא סילבר.
+ * משותף בין דוח "בקרת ליווי" (CoverageReportPage) לבין יצירת התלמיד האוטומטית
+ * בשמירת לקוח (CustomerFormPage), כדי ששני המקומות ישתמשו באותה הגדרה בדיוק.
+ */
+export function isLiveTrackPlan(plan: string): boolean {
+  const p = plan.toLowerCase()
+  return p.includes('גולד') || p.includes('gold') || p.includes('פלטינום') || p.includes('platinum')
+}
+
 /** מספר הימים מהיום ועד לתאריך נתון (יכול להיות שלילי אם התאריך כבר עבר) */
 export function daysUntil(date: string | Date): number {
   const target = typeof date === 'string' ? new Date(date) : date

@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabaseClient'
+import { useAuth } from '../../context/AuthContext'
 import { useCustomerBillings } from '../../lib/useCustomerBillings'
-import { daysUntil, dateInNDays, todayDateString } from '../../lib/businessStats'
+import { daysUntil, dateInNDays, isLiveTrackPlan, todayDateString } from '../../lib/businessStats'
 import { ShieldAlert, Snowflake } from 'lucide-react'
 import { Section, Field, inputClass } from '../../components/BusinessFormControls'
 import { Button } from '../../components/ui/button'
@@ -96,6 +97,7 @@ export function CustomerFormPage() {
   const navigate = useNavigate()
   const { id } = useParams()
   const isEditing = Boolean(id)
+  const { profile } = useAuth()
 
   const [form, setForm] = useState<FormState>(initialState)
   const [saving, setSaving] = useState(false)
@@ -239,6 +241,40 @@ export function CustomerFormPage() {
     setBillingForm((f) => ({ ...f, [key]: value }))
   }
 
+  /**
+   * יצירת תלמיד אוטומטית במודול המנטורינג עבור לקוח פעיל במסלול גולד/פלטינום,
+   * אם עדיין אין לו תלמיד מקושר. פועל רק לאדמין (role='admin') — בדיוק כמו
+   * הקישור הידני בטופס התלמיד — כי RLS על students מתיר כתיבה רק לאדמין.
+   */
+  async function syncMentoringStudent(
+    customerId: string,
+    customer: { full_name: string; phone: string; plan: string; status: string; subscription_end_date: string },
+  ) {
+    if (profile?.role !== 'admin') return
+    if (customer.status !== 'active' || daysUntil(customer.subscription_end_date) < 0) return
+    if (!isLiveTrackPlan(customer.plan)) return
+
+    const { data: existing } = await supabase
+      .from('students')
+      .select('id')
+      .eq('customer_id', customerId)
+      .maybeSingle()
+    if (existing) return
+
+    const { error } = await supabase.from('students').insert({
+      display_name: customer.full_name,
+      phone: customer.phone || null,
+      status: 'active',
+      notes: null,
+      customer_id: customerId,
+    })
+    if (error) {
+      toast.add({ title: 'הלקוח נשמר, אך יצירת התלמיד האוטומטית נכשלה', description: error.message, type: 'error' })
+      return
+    }
+    toast.add({ title: `נוצר תלמיד במערכת המנטורינג עבור ${customer.full_name}`, type: 'success' })
+  }
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     setSaving(true)
@@ -278,6 +314,7 @@ export function CustomerFormPage() {
         return
       }
       toast.add({ title: 'הלקוח עודכן בהצלחה', type: 'success' })
+      await syncMentoringStudent(id, payload)
       navigate('/business/customers')
       return
     }
@@ -290,6 +327,7 @@ export function CustomerFormPage() {
       return
     }
     toast.add({ title: 'הלקוח נשמר בהצלחה', type: 'success' })
+    await syncMentoringStudent(data.id, payload)
     navigate(`/business/customers/${data.id}/edit`)
   }
 

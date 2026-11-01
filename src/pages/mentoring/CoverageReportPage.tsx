@@ -1,13 +1,14 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ShieldAlert, UserX, CalendarX, CheckCircle2 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
+import { supabase } from '../../lib/supabaseClient'
 import { useCustomers } from '../../lib/useCustomers'
 import { useStudents } from '../../lib/useStudents'
 import { useMentorshipMeetings } from '../../lib/useMentorshipMeetings'
 import { useMentorAssignments } from '../../lib/useMentorAssignments'
 import { useProfiles } from '../../lib/useProfiles'
-import { getEffectiveStatus } from '../../lib/businessStats'
+import { getEffectiveStatus, isLiveTrackPlan } from '../../lib/businessStats'
 import { StatTile } from '../../components/StatTile'
 import { Card } from '../../components/ui/card'
 import { Badge } from '../../components/ui/badge'
@@ -15,12 +16,8 @@ import { Button } from '../../components/ui/button'
 import { Alert, AlertDescription } from '../../components/ui/alert'
 import { Skeleton } from '../../components/ui/skeleton'
 import { EmptyState } from '../../components/EmptyState'
-
-/** מסלולי "ליווי" שדורשים מעקב פגישות — גולד/פלטינום בלבד, לא סילבר */
-function isLiveTrackPlan(plan: string): boolean {
-  const p = plan.toLowerCase()
-  return p.includes('גולד') || p.includes('gold') || p.includes('פלטינום') || p.includes('platinum')
-}
+import { toast } from '../../components/ui/toast'
+import type { Customer } from '../../types/business.types'
 
 type Severity = 'missing_student' | 'missing_meeting' | 'ok'
 
@@ -35,6 +32,25 @@ export function CoverageReportPage() {
   const { profiles } = useProfiles()
 
   const loading = loadingCustomers || loadingStudents || loadingMeetings
+
+  const [creatingStudentFor, setCreatingStudentFor] = useState<string | null>(null)
+
+  async function handleQuickCreateStudent(c: Customer) {
+    setCreatingStudentFor(c.id)
+    const { error } = await supabase.from('students').insert({
+      display_name: c.full_name,
+      phone: c.phone || null,
+      status: 'active',
+      notes: null,
+      customer_id: c.id,
+    })
+    setCreatingStudentFor(null)
+    if (error) {
+      toast.add({ title: 'שגיאה ביצירת תלמיד', description: error.message, type: 'error' })
+      return
+    }
+    toast.add({ title: `תלמיד נוצר ומקושר ל-${c.full_name}`, type: 'success' })
+  }
 
   const mentorEmailByStudentId = useMemo(() => {
     const profileById = new Map(profiles.map((p) => [p.id, p]))
@@ -161,8 +177,12 @@ export function CoverageReportPage() {
                   <Badge variant="outline" className="border-transparent bg-destructive/10 text-destructive">
                     <UserX className="h-3 w-3" /> לא קושר למנטורינג
                   </Badge>
-                  <Button size="sm" variant="outline" render={<Link to="/mentoring/students" />}>
-                    לרשימת תלמידים
+                  <Button
+                    size="sm"
+                    disabled={creatingStudentFor === c.id}
+                    onClick={() => handleQuickCreateStudent(c)}
+                  >
+                    {creatingStudentFor === c.id ? 'יוצר...' : 'יצירת תלמיד'}
                   </Button>
                 </div>
               )}
