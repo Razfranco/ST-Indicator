@@ -1,3 +1,4 @@
+import type { AiRun, AiSettings, StudentProfile, TranscriptVersion, SummaryReview } from '../lib/mentoringAi'
 import type {
   AdditionalExpense,
   AdditionalExpenseInsert,
@@ -139,6 +140,21 @@ export type Database = {
         Row: MentorshipMeeting
         Insert: MentorshipMeetingInsert
         Update: MentorshipMeetingUpdate
+        Relationships: []
+      }
+      mentoring_student_profiles: { Row: StudentProfile; Insert: never; Update: never; Relationships: [] }
+      meeting_transcript_versions: { Row: TranscriptVersion; Insert: never; Update: never; Relationships: [] }
+      meeting_summary_reviews: { Row: SummaryReview; Insert: never; Update: never; Relationships: [] }
+      meeting_ai_runs: {
+        Row: AiRun
+        Insert: never
+        Update: never
+        Relationships: []
+      }
+      mentoring_ai_settings: {
+        Row: AiSettings
+        Insert: never
+        Update: Partial<AiSettings>
         Relationships: []
       }
       meeting_transcripts: {

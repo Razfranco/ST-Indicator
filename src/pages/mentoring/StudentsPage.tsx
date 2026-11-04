@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import { GraduationCap } from 'lucide-react'
@@ -263,7 +264,7 @@ export function StudentsPage() {
                 {isAdmin && <Checkbox checked={selectedIds.has(s.id)} onCheckedChange={() => toggleSelect(s.id)} />}
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="font-medium text-foreground">{s.display_name}</span>
+                    <Link className="font-medium text-foreground underline" to={'/mentoring/profiles?student='+s.id}>{s.display_name}</Link>
                     <Badge variant="outline" className={`border-transparent ${statusClass[s.status]}`}>
                       {statusLabel[s.status]}
                     </Badge>

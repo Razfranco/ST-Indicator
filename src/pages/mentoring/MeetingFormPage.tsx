@@ -1,3 +1,4 @@
+import { MeetingAiPanel } from './MeetingAiPanel'
 import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
@@ -100,6 +101,7 @@ export function MeetingFormPage() {
     notes: '',
     consent_given: false,
   })
+  const [consentSaved, setConsentSaved] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(isEditing)
@@ -126,6 +128,7 @@ export function MeetingFormPage() {
           setLoading(false)
           return
         }
+        setConsentSaved(data.consent_given)
         const { date, time } = splitIsoToDateAndTime(data.starts_at)
         setForm({
           student_id: data.student_id,
@@ -414,7 +417,7 @@ export function MeetingFormPage() {
         <form onSubmit={handleSaveTranscript}>
           <Section title="תמליל פגישה">
             <p className="text-xs text-muted-foreground">
-              הדבק/י טקסט או צרף/י קובץ (TXT / SRT / VTT). הסיכום האוטומטי של ה-AI יתווסף בשלב הבא — כרגע רק שמירת התמליל.
+              הדבק/י טקסט או צרף/י קובץ (TXT / SRT / VTT). ניתן להפיק סיכום מהתמליל השמור באזור ההקלטה והסיכום למטה.
             </p>
 
             {transcriptError && (
@@ -467,6 +470,16 @@ export function MeetingFormPage() {
           </Section>
         </form>
       )}
+      {isEditing && id && <MeetingAiPanel
+        meetingId={id}
+        consentSaved={consentSaved}
+        hasSavedTranscript={!!transcript?.transcript_text.trim()}
+        onCopyTranscript={text => {
+          setTranscriptText(text)
+          setTranscriptFilename(null)
+          toast.add({ title: 'התמליל הועתק לשדה. בדוק אותו ולחץ על שמירת תמליל.', type: 'success' })
+        }}
+      />}
     </div>
   )
 }

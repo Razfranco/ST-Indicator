@@ -1,3 +1,4 @@
+import { MentoringAlerts } from '../pages/mentoring/MentoringAlerts'
 import type { ReactNode } from 'react'
 import { NavLink } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
@@ -5,10 +6,11 @@ import { useAuth } from '../context/AuthContext'
 const baseTabs = [
   { to: '/mentoring/meetings', label: 'פגישות' },
   { to: '/mentoring/students', label: 'תלמידים' },
+  { to: '/mentoring/profiles', label: 'פרופילי ליווי וארכיון' },
   { to: '/mentoring/coverage', label: 'בקרת ליווי' },
 ]
 
-const adminTabs = [{ to: '/mentoring/assignments', label: 'שיוכי מנטורים' }]
+const adminTabs = [{ to: '/mentoring/assignments', label: 'שיוכי מנטורים' }, { to: '/mentoring/ai-settings', label: 'הנחיות סיכום' }]
 
 export function MentoringLayout({ children }: { children: ReactNode }) {
   const { profile } = useAuth()
@@ -31,6 +33,7 @@ export function MentoringLayout({ children }: { children: ReactNode }) {
           </NavLink>
         ))}
       </nav>
+      <MentoringAlerts />
       {children}
     </div>
   )
