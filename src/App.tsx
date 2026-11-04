@@ -26,6 +26,8 @@ const CustomersPage = lazy(() =>
 const CustomerFormPage = lazy(() =>
   import('./pages/business/CustomerFormPage').then((m) => ({ default: m.CustomerFormPage })),
 )
+const WebsiteCoursesPage = lazy(() => import('./pages/business/WebsiteCoursesPage').then(m=>({default:m.WebsiteCoursesPage})))
+const TrialsPage = lazy(() => import('./pages/business/TrialsPage').then(m=>({default:m.TrialsPage})))
 const LeadsPage = lazy(() => import('./pages/business/LeadsPage').then((m) => ({ default: m.LeadsPage })))
 const ExpensesPage = lazy(() =>
   import('./pages/business/ExpensesPage').then((m) => ({ default: m.ExpensesPage })),
@@ -166,6 +168,10 @@ function App() {
           <Route path="/business/customers" element={businessPage(<CustomersPage />)} />
           <Route path="/business/customers/new" element={businessPage(<CustomerFormPage />)} />
           <Route path="/business/customers/:id/edit" element={businessPage(<CustomerFormPage />)} />
+          <Route path="/business/courses" element={businessPage(<WebsiteCoursesPage/>)} />
+          <Route path="/business/courses/:id" element={businessPage(<WebsiteCoursesPage/>)} />
+          <Route path="/business/trial-coupons" element={businessPage(<WebsiteCoursesPage coupons/>)} />
+          <Route path="/business/trials" element={businessPage(<TrialsPage/>)} />
           <Route path="/business/leads" element={businessPage(<LeadsPage />)} />
           <Route path="/business/expenses" element={businessPage(<ExpensesPage />)} />
           <Route path="/business/cashflow" element={businessPage(<CashflowPage />)} />

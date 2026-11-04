@@ -177,7 +177,7 @@ export function CustomersPage() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <h2 className="font-heading text-xl font-semibold">לקוחות</h2>
+        <h2 className="font-heading text-xl font-semibold">מנויי אינדיקטור</h2>
         <Button render={<Link to="/business/customers/new" />}>+ לקוח חדש</Button>
       </div>
 

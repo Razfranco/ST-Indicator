@@ -1,4 +1,5 @@
 import { Fragment, useMemo } from 'react'
+import { useWebsitePurchases } from '../lib/useWebsitePurchases'
 import { useNavigate } from 'react-router-dom'
 import { Bell } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
@@ -65,6 +66,8 @@ export function NotificationsBell() {
   const navigate = useNavigate()
   const { customers } = useCustomers()
   const { leads } = useLeads()
+  const {trials,orders}=useWebsitePurchases()
+  const websiteAttention=trials.filter(t=>t.redeemed_at && (!t.access_granted_at || !t.notified_at || (!t.access_removed_at && new Date(t.expires_at!).getTime()<=Date.now()+86400000)))
 
   const expiredCustomers = useMemo(() => customers.filter(needsAccessRemoval), [customers])
   const expiringSoonCustomers = useMemo(() => customers.filter(customerExpiringSoon), [customers])
@@ -80,11 +83,12 @@ export function NotificationsBell() {
     () => leads.filter((l) => leadAttentionReason(l) === 'trial_ending'),
     [leads],
   )
-  const count = expiredCustomers.length + expiringSoonCustomers.length + followUpLeads.length + trialLeads.length
+  const count = expiredCustomers.length + expiringSoonCustomers.length + followUpLeads.length + trialLeads.length + websiteAttention.length
 
   if (!profile?.business_access) return null
 
   const sections = [
+    websiteAttention.length>0 && <DropdownMenuGroup key="website-trials"><DropdownMenuLabel>מימושי ניסיון באתר</DropdownMenuLabel>{websiteAttention.map(t=><DropdownMenuItem key={t.id} onClick={()=>navigate('/business/trials')}><span>{orders.find(o=>o.id===t.order_id)?.full_name} · {!t.access_granted_at?'נדרש לצרף לאינדיקטור':'ניסיון מסתיים / דורש טיפול'}</span></DropdownMenuItem>)}</DropdownMenuGroup>,
     expiredCustomers.length > 0 && (
       <DropdownMenuGroup key="customers">
         <DropdownMenuLabel>מנויים שפגו — דורשים טיפול</DropdownMenuLabel>
@@ -136,11 +140,11 @@ export function NotificationsBell() {
     ),
     trialLeads.length > 0 && (
       <DropdownMenuGroup key="trial-leads">
-        <DropdownMenuLabel>לידים — תקופת ניסיון</DropdownMenuLabel>
+        <DropdownMenuLabel>תקופת ניסיון</DropdownMenuLabel>
         {trialLeads.map((l) => (
           <DropdownMenuItem
             key={l.id}
-            onClick={() => navigate(`/business/leads?focus=${l.id}`)}
+            onClick={() => navigate(`/business/trials?focus=${l.id}`)}
             className="flex-col items-start gap-0.5 py-2"
           >
             <span className="font-medium text-foreground">{l.full_name}</span>

@@ -3,7 +3,10 @@ import { NavLink } from 'react-router-dom'
 import { NotificationsBell } from './NotificationsBell'
 
 const tabs = [
-  { to: '/business/customers', label: 'לקוחות' },
+  { to: '/business/customers', label: 'מנויי אינדיקטור' },
+  { to: '/business/courses', label: 'מנויי קורס' },
+  { to: '/business/trial-coupons', label: 'קופון ניסיון אינדיקטור' },
+  { to: '/business/trials', label: 'תקופת ניסיון' },
   { to: '/business/leads', label: 'לידים' },
   { to: '/business/expenses', label: 'הוצאות' },
   { to: '/business/cashflow', label: 'תזרים' },

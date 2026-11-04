@@ -332,16 +332,16 @@ function LeadFormFields({
   )
 }
 
-export function LeadsPage() {
+export function LeadsPage({trialsOnly=false}:{trialsOnly?:boolean}) {
   const { leads, loading, error: loadError } = useLeads()
   const [searchParams, setSearchParams] = useSearchParams()
 
-  const [form, setForm] = useState<FormState>(emptyForm)
+  const [form, setForm] = useState<FormState>({...emptyForm,status:trialsOnly?'trial_week':'relevant'})
   const [saving, setSaving] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
 
   const [editingLead, setEditingLead] = useState<Lead | null>(null)
-  const [editForm, setEditForm] = useState<FormState>(emptyForm)
+  const [editForm, setEditForm] = useState<FormState>({...emptyForm,status:trialsOnly?'trial_week':'relevant'})
   const [savingEdit, setSavingEdit] = useState(false)
   const [editError, setEditError] = useState<string | null>(null)
 
@@ -381,6 +381,7 @@ export function LeadsPage() {
 
   const filtered = useMemo(() => {
     return leads.filter((l) => {
+      if ((l.status === 'trial_week') !== trialsOnly) return false
       if (nameFilter && !l.full_name.includes(nameFilter)) return false
       if (phoneFilter && !l.phone.includes(phoneFilter)) return false
       if (sourceFilter && l.source !== sourceFilter) return false
@@ -388,7 +389,7 @@ export function LeadsPage() {
       if (followUpFilter && !(l.follow_up ?? '').includes(followUpFilter)) return false
       return true
     })
-  }, [leads, nameFilter, phoneFilter, sourceFilter, statusFilter, followUpFilter])
+  }, [leads, nameFilter, phoneFilter, sourceFilter, statusFilter, followUpFilter,trialsOnly])
 
   const sorted = useMemo(() => {
     if (!sortField) return filtered
@@ -497,7 +498,7 @@ export function LeadsPage() {
       return
     }
     toast.add({ title: 'הליד נוסף בהצלחה', type: 'success' })
-    setForm(emptyForm)
+    setForm({...emptyForm,status:trialsOnly?'trial_week':'relevant'})
   }
 
   async function handleEditSubmit(e: FormEvent) {
@@ -548,7 +549,7 @@ export function LeadsPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      <h2 className="font-heading text-xl font-semibold">לידים ({filtered.length})</h2>
+      <h2 className="font-heading text-xl font-semibold">{trialsOnly?'אנשי ניסיון קיימים':'לידים'} ({filtered.length})</h2>
 
       {error && (
         <Alert variant="destructive">
