@@ -557,11 +557,11 @@ export function LeadsPage({trialsOnly=false}:{trialsOnly?:boolean}) {
         </Alert>
       )}
 
-      <Section title="ליד חדש">
+      <Section title={trialsOnly?'הוספה לתקופת ניסיון':'ליד חדש'}>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <LeadFormFields form={form} update={update} />
           <Button type="submit" disabled={saving} className="self-start">
-            {saving ? 'שומר...' : '+ הוספת ליד'}
+            {saving ? 'שומר...' : trialsOnly ? '+ הוספת איש ניסיון' : '+ הוספת ליד'}
           </Button>
         </form>
       </Section>
@@ -639,7 +639,7 @@ export function LeadsPage({trialsOnly=false}:{trialsOnly?:boolean}) {
           ))}
         </div>
       ) : sorted.length === 0 ? (
-        <EmptyState icon={UserPlus} title="אין לידים להצגה" description="נסה/י לשנות את הסינון, או הוסף/י ליד חדש למעלה." />
+        <EmptyState icon={UserPlus} title={trialsOnly?'אין אנשי ניסיון קיימים להצגה':'אין לידים להצגה'} description={trialsOnly?'אפשר להוסיף איש ניסיון בטופס למעלה.':'נסה/י לשנות את הסינון, או הוסף/י ליד חדש למעלה.'} />
       ) : (
         <>
           <div className="flex flex-col gap-3 sm:hidden">
