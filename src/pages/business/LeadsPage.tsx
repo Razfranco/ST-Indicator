@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { FormEvent } from 'react'
+import type { FormEvent, ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { UserPlus } from 'lucide-react'
 import { supabase } from '../../lib/supabaseClient'
@@ -122,6 +122,11 @@ function compareNullableTime(a: string | null, b: string | null): number {
   return at - bt
 }
 
+function formatTrialExpiry(value: string | null) {
+  if (!value) return '—'
+  return value.includes('T') ? new Date(value).toLocaleString('he-IL') : value
+}
+
 function FollowUpCell({ followUpAt }: { followUpAt: string | null }) {
   if (!followUpAt) return <span className="text-muted-foreground">—</span>
   const countdown = followUpCountdown(followUpAt)
@@ -153,6 +158,7 @@ function LeadCard({
   onEdit,
   onDelete,
   deleting,
+  externalActions,
 }: {
   lead: Lead
   selected: boolean
@@ -160,13 +166,14 @@ function LeadCard({
   onEdit: () => void
   onDelete: () => void
   deleting: boolean
+  externalActions?: ReactNode
 }) {
   const needsAttention = leadNeedsAttention(l)
   return (
     <Card className={`gap-2 p-3 shadow-sm ${needsAttention ? 'border-e-2 border-e-destructive bg-destructive/5' : ''}`}>
       <div className="flex items-center justify-between gap-2 px-4">
         <div className="flex items-center gap-2">
-          <Checkbox checked={selected} onCheckedChange={onToggleSelected} aria-label={`בחירת ${l.full_name}`} />
+          {externalActions === undefined && <Checkbox checked={selected} onCheckedChange={onToggleSelected} aria-label={`בחירת ${l.full_name}`} />}
           <span className="font-medium text-foreground">{l.full_name}</span>
         </div>
         <div className="flex flex-wrap items-center gap-1">
@@ -187,7 +194,7 @@ function LeadCard({
         </CardField>
         <CardField label="מקור">{l.source}</CardField>
         <CardField label="תוקף תקופת ניסיון">
-          <span dir="ltr">{l.status === 'trial_week' ? (l.trial_week_expiry ?? '—') : '—'}</span>
+          <span dir="ltr">{l.status === 'trial_week' ? formatTrialExpiry(l.trial_week_expiry) : '—'}</span>
         </CardField>
         <CardField label="מועד פולו-אפ">
           <FollowUpCell followUpAt={l.follow_up_at} />
@@ -212,6 +219,7 @@ function LeadCard({
       )}
 
       <div className="flex gap-3 border-t border-border px-4 pt-2">
+        {externalActions === undefined ? <>
         <Button variant="ghost" size="sm" onClick={onEdit} className="text-muted-foreground hover:text-primary">
           עריכה
         </Button>
@@ -224,6 +232,7 @@ function LeadCard({
         >
           מחיקה
         </Button>
+        </> : externalActions}
       </div>
     </Card>
   )
@@ -332,8 +341,13 @@ function LeadFormFields({
   )
 }
 
-export function LeadsPage({trialsOnly=false}:{trialsOnly?:boolean}) {
-  const { leads, loading, error: loadError } = useLeads()
+export type ExternalTrialRow = Lead & { actions: ReactNode }
+const noExternalRows: ExternalTrialRow[] = []
+
+export function LeadsPage({trialsOnly=false, externalTrials=noExternalRows}:{trialsOnly?:boolean; externalTrials?:ExternalTrialRow[]}) {
+  const { leads: storedLeads, loading, error: loadError } = useLeads()
+  const leads = useMemo(() => trialsOnly ? [...storedLeads, ...externalTrials] : storedLeads, [storedLeads, externalTrials, trialsOnly])
+  const externalById = new Map(externalTrials.map(row => [row.id, row]))
   const [searchParams, setSearchParams] = useSearchParams()
 
   const [form, setForm] = useState<FormState>({...emptyForm,status:trialsOnly?'trial_week':'relevant'})
@@ -436,12 +450,13 @@ export function LeadsPage({trialsOnly=false}:{trialsOnly?:boolean}) {
     })
   }
 
-  const allVisibleSelected = sorted.length > 0 && sorted.every((l) => selectedIds.has(l.id))
+  const selectable = sorted.filter(l => !externalById.has(l.id))
+  const allVisibleSelected = selectable.length > 0 && selectable.every((l) => selectedIds.has(l.id))
 
   function toggleSelectAll(checked: boolean) {
     setSelectedIds((prev) => {
       const next = new Set(prev)
-      for (const l of sorted) {
+      for (const l of selectable) {
         if (checked) next.add(l.id)
         else next.delete(l.id)
       }
@@ -549,7 +564,7 @@ export function LeadsPage({trialsOnly=false}:{trialsOnly?:boolean}) {
 
   return (
     <div className="flex flex-col gap-5">
-      <h2 className="font-heading text-xl font-semibold">{trialsOnly?'אנשי ניסיון קיימים':'לידים'} ({filtered.length})</h2>
+      <h2 className="font-heading text-xl font-semibold">{trialsOnly?'אנשי תקופת ניסיון':'לידים'} ({filtered.length})</h2>
 
       {error && (
         <Alert variant="destructive">
@@ -652,6 +667,7 @@ export function LeadsPage({trialsOnly=false}:{trialsOnly?:boolean}) {
                 onEdit={() => openEdit(l)}
                 onDelete={() => setPendingDeleteIds([l.id])}
                 deleting={deletingIds.has(l.id)}
+                externalActions={externalById.get(l.id)?.actions}
               />
             ))}
           </div>
@@ -692,11 +708,11 @@ export function LeadsPage({trialsOnly=false}:{trialsOnly?:boolean}) {
                   return (
                   <TableRow key={l.id} className={needsAttention ? 'border-e-2 border-e-destructive bg-destructive/5' : ''}>
                     <TableCell>
-                      <Checkbox
+                      {!externalById.has(l.id) && <Checkbox
                         checked={selectedIds.has(l.id)}
                         onCheckedChange={(checked: boolean) => toggleSelected(l.id, checked)}
                         aria-label={`בחירת ${l.full_name}`}
-                      />
+                      />}
                     </TableCell>
                     <TableCell className="font-medium text-foreground">{l.full_name}</TableCell>
                     <TableCell className="text-muted-foreground" dir="ltr">
@@ -716,14 +732,15 @@ export function LeadsPage({trialsOnly=false}:{trialsOnly?:boolean}) {
                       </div>
                     </TableCell>
                     <TableCell className="text-muted-foreground" dir="ltr">
-                      {l.status === 'trial_week' ? (l.trial_week_expiry ?? '—') : '—'}
+                      {l.status === 'trial_week' ? formatTrialExpiry(l.trial_week_expiry) : '—'}
                     </TableCell>
                     <TableCell>
                       <FollowUpCell followUpAt={l.follow_up_at} />
                     </TableCell>
                     <TableCell className="text-muted-foreground">{l.follow_up ?? '—'}</TableCell>
-                    <TableCell className="text-muted-foreground">{l.note ?? '—'}</TableCell>
+                    <TableCell className="min-w-56 max-w-80 whitespace-normal break-words text-muted-foreground">{l.note ?? '—'}</TableCell>
                     <TableCell className="text-left">
+                      {externalById.has(l.id) ? externalById.get(l.id)!.actions : <>
                       <Button
                         variant="ghost"
                         size="sm"
@@ -741,6 +758,7 @@ export function LeadsPage({trialsOnly=false}:{trialsOnly?:boolean}) {
                       >
                         מחיקה
                       </Button>
+                      </>}
                     </TableCell>
                   </TableRow>
                   )
