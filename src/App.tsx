@@ -17,6 +17,7 @@ import { PlatformSelectPage } from './pages/PlatformSelectPage'
 import { TradeListPage } from './pages/TradeListPage'
 import { TradeFormPage } from './pages/TradeFormPage'
 
+const NotificationSettingsPage = lazy(() => import('./pages/mentoring/NotificationSettingsPage').then(m => ({ default: m.NotificationSettingsPage })))
 const StudentProfilesPage = lazy(() => import('./pages/mentoring/StudentProfilesPage').then(m => ({ default: m.StudentProfilesPage })))
 
 const AiSettingsPage = lazy(() => import('./pages/mentoring/AiSettingsPage').then(m => ({ default: m.AiSettingsPage })))
@@ -181,6 +182,7 @@ function App() {
           <Route path="/business/cashflow" element={businessPage(<CashflowPage />)} />
           <Route path="/business/treasury" element={businessPage(<TreasuryPage />)} />
           <Route path="/mentoring" element={<Navigate to="/mentoring/meetings" replace />} />
+          <Route path="/mentoring/notifications" element={mentoringPage(<NotificationSettingsPage />)} />
           <Route path="/mentoring/profiles" element={mentoringPage(<StudentProfilesPage />)} />
           <Route path="/mentoring/ai-settings" element={mentoringPage(<AiSettingsPage />)} />
           <Route path="/mentoring/meetings" element={mentoringPage(<MeetingsPage />)} />

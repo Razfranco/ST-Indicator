@@ -50,6 +50,7 @@ export default defineConfig({
         ],
       },
       workbox: {
+        importScripts: ['/push-events.js'],
         globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
         navigateFallbackDenylist: [/^\/supabase\//],
         runtimeCaching: [
