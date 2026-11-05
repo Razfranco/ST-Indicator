@@ -119,7 +119,7 @@ export function MeetingAiPanel({
   async function processRun(id: string) {
     for (let step = 0; step < 2; step++) {
       if (mounted.current)
-        setProgress(step === 0 ? "מעבד את הפגישה…" : "מפיק סיכום מהתמליל…");
+        setProgress(step === 0 ? "מכין את השמע ומתמלל את ההקלטה…" : "מפיק סיכום מהתמליל…");
       const r = await mentoringRequest<AiRun>({ action: "process", id });
       if (mounted.current) await load();
       if (r.status === "completed") return;
@@ -134,11 +134,11 @@ export function MeetingAiPanel({
       !fromTranscript &&
       (!file ||
         !file.size ||
-        file.size > 25_000_000 ||
+        file.size > 50_000_000 ||
         !/\.(mp3|mp4|mpeg|mpga|m4a|wav|webm)$/i.test(file.name))
     ) {
       setError(
-        "בחר הקלטה בפורמט MP3, M4A, MP4, WAV או WEBM, עד 25MB. לקובץ גדול יותר ניתן לייצא שמע דחוס או לצרף תמליל קיים.",
+        "בחר הקלטה בפורמט MP3, M4A, MP4, WAV או WEBM, עד 50MB. הקלטות גדולות נדחסות אוטומטית לתמלול; המקור נשמר בארכיון הפרטי.",
       );
       return;
     }
@@ -283,7 +283,7 @@ export function MeetingAiPanel({
           )}
           <Field
             label="הקלטת הפגישה"
-            hint="MP3, M4A, MP4, WAV, WEBM, MPEG — עד 25MB לקובץ. אפשר גם להפיק סיכום מתמליל שמור."
+            hint="MP3, M4A, MP4, WAV, WEBM, MPEG — עד 50MB לקובץ. מעל 25MB מתבצעת דחיסת שמע אוטומטית לפני התמלול; ההקלטה המקורית נשמרת."
           >
             <input
               type="file"
