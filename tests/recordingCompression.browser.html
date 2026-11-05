@@ -1,0 +1,17 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><title>Local recording compression test</title>
+<input id="source" type="file"><button id="start">Compress</button><output id="result"></output>
+<script type="module">
+import { prepareRecording } from '/src/lib/recordingCompression.ts'
+import { Input, ALL_FORMATS, BlobSource } from 'mediabunny'
+document.querySelector('#start').onclick = async () => {
+  const output = document.querySelector('#result')
+  output.textContent = 'running'
+  try {
+    const original = document.querySelector('#source').files[0]
+    const result = await prepareRecording(original)
+    const input = new Input({ formats: ALL_FORMATS, source: new BlobSource(result.file) })
+    try { output.textContent = JSON.stringify({ ok: true, size: result.file.size, duration: await input.computeDuration(), compressed: result.compressed, original: original.size }) }
+    finally { input.dispose() }
+  } catch (e) { output.textContent = JSON.stringify({ ok: false, error: e.message, cause: String(e.cause || '') }) }
+}
+</script></html>

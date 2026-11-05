@@ -1,3 +1,4 @@
+import { prepareRecording, validateLocalRecording, type PreparedRecording } from "../../lib/recordingCompression";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
 import {
@@ -52,10 +53,15 @@ export function MeetingAiPanel({
     [reviews, setReviews] = useState<SummaryReview[]>([]),
     [profileNotice, setProfileNotice] = useState("");
   const mounted = useRef(true);
+  const compressionController = useRef<AbortController | null>(null);
+  const preparedCache = useRef<{ original: File; prepared: PreparedRecording } | null>(null);
+  const [compressing, setCompressing] = useState(false);
+  const [compressionInfo, setCompressionInfo] = useState("");
   useEffect(() => {
     mounted.current = true;
     return () => {
       mounted.current = false;
+      compressionController.current?.abort();
     };
   }, []);
   const load = useCallback(async () => {
@@ -143,28 +149,39 @@ export function MeetingAiPanel({
       setError(aiError("consent_required"));
       return;
     }
-    if (
-      !fromTranscript &&
-      (!file ||
-        !file.size ||
-        file.size > 50_000_000 ||
-        !/\.(mp3|mp4|mpeg|mpga|m4a|wav|webm)$/i.test(file.name))
-    ) {
-      setError(
-        "בחר הקלטה בפורמט MP3, M4A, MP4, WAV או WEBM, עד 50MB. הקלטות גדולות נדחסות אוטומטית לתמלול; המקור נשמר בארכיון הפרטי.",
-      );
-      return;
+    if (!fromTranscript) {
+      try { if (!file) throw new Error('בחרו הקלטה.'); validateLocalRecording(file) }
+      catch (e) { setError((e as Error).message); return }
     }
     setBusy(true);
     setError("");
     setProgress("מכין עיבוד חדש…");
     try {
+      let uploadFile = file;
+      if (!fromTranscript) {
+        const controller = new AbortController();
+        compressionController.current = controller;
+        setCompressing(file!.size > 50_000_000);
+        setProgress(file!.size > 50_000_000 ? 'מכין דחיסה במכשיר… יש להשאיר את המסך פתוח.' : 'מכין העלאה…');
+        const prepared = preparedCache.current?.original === file
+          ? preparedCache.current.prepared
+          : await prepareRecording(file!, {
+            signal: controller.signal,
+            onProgress: p => { if (mounted.current) setProgress(`מכווץ את ההקלטה במכשיר… ${Math.floor(p * 100)}% — יש להשאיר את המסך פתוח.`) },
+          });
+        if (!mounted.current || controller.signal.aborted) return;
+        preparedCache.current = { original: file!, prepared };
+        uploadFile = prepared.file;
+        setCompressionInfo(prepared.compressed ? `ההקלטה כווצה מ־${(prepared.originalBytes / 1_000_000).toFixed(1)}MB ל־${(uploadFile.size / 1_000_000).toFixed(1)}MB. הגרסה המכווצת, במלוא אורך השיחה וללא הווידאו, היא שתישמר בפלטפורמה.` : '');
+        setCompressing(false);
+        compressionController.current = null;
+      }
       const run = await mentoringRequest<AiRun>({
         action: "create",
         id: crypto.randomUUID(),
         meetingId,
         fromTranscript,
-        ...(!fromTranscript ? { filename: file!.name, bytes: file!.size } : {}),
+        ...(!fromTranscript ? { filename: uploadFile!.name, bytes: uploadFile!.size } : {}),
       });
       setSelectedId(run.id);
       await load();
@@ -172,9 +189,9 @@ export function MeetingAiPanel({
         setProgress("מעלה הקלטה לאחסון פרטי…");
         const r = await supabase.storage
           .from("mentoring-recordings")
-          .upload(run.recording_path!, file!, {
+          .upload(run.recording_path!, uploadFile!, {
             upsert: false,
-            contentType: file!.type || "application/octet-stream",
+            contentType: uploadFile!.type || "application/octet-stream",
           });
         if (r.error)
           throw Error(
@@ -194,6 +211,8 @@ export function MeetingAiPanel({
     } finally {
       if (mounted.current) {
         setBusy(false);
+        setCompressing(false);
+        compressionController.current = null;
         setProgress("");
       }
     }
@@ -299,13 +318,13 @@ export function MeetingAiPanel({
           )}
           <Field
             label="הקלטת הפגישה"
-            hint="MP3, M4A, MP4, WAV, WEBM, MPEG — עד 50MB לקובץ. מעל 25MB מתבצעת דחיסת שמע אוטומטית לפני התמלול; ההקלטה המקורית נשמרת."
+            hint="MP3, M4A, MP4, WAV, WEBM, MPEG — אפשר לבחור קובץ עד 100MB. מעל 50MB השמע יכווץ במכשיר לפני ההעלאה; בפלטפורמה תישמר הגרסה המכווצת ללא הווידאו. שמרו אצלכם את קובץ המקור."
           >
             <input
               type="file"
               accept=".mp3,.m4a,.mp4,.wav,.webm,.mpeg,.mpga"
               disabled={busy}
-              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              onChange={(e) => { setFile(e.target.files?.[0] ?? null); preparedCache.current = null; setCompressionInfo(""); setError("") }}
               className={inputClass}
             />
           </Field>
@@ -328,11 +347,13 @@ export function MeetingAiPanel({
           </div>
           <p className="text-xs text-muted-foreground">
             {backgroundReady
-              ? 'יש להשאיר את המסך פתוח רק עד שההעלאה והוספת המשימה לתור הושלמו. לאחר הודעת האישור אפשר לסגור את המסך; השרת ימשיך לתמלל ולסכם. פוש בסיום יישלח למכשירים שבהם הפעלת התראות, לפי הגדרות החשבון.'
+              ? 'יש להשאיר את המסך פתוח עד שהדחיסה, ההעלאה והוספת המשימה לתור הושלמו. לאחר הודעת האישור אפשר לסגור את המסך; השרת ימשיך לתמלל ולסכם. פוש בסיום יישלח למכשירים שבהם הפעלת התראות, לפי הגדרות החשבון.'
               : 'השאר את המסך פתוח עד סיום שני השלבים. אם העיבוד נקטע, השלבים שהושלמו נשמרים וניתן להמשיך מהם.'}
             {' '}כל עיבוד חדש יוצר גרסה נוספת ושימוש ב־API.
           </p>
+          {compressionInfo && <p className="text-sm text-muted-foreground">{compressionInfo}</p>}
           {busy && <p role="status">{progress || "שומר…"}</p>}
+          {compressing && <Button type="button" variant="outline" onClick={() => compressionController.current?.abort()}>ביטול דחיסה</Button>}
           {runs.length > 0 && (
             <Field label="גרסאות עיבוד">
               <select
