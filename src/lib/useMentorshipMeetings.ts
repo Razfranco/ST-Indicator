@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from './supabaseClient'
 import type { MentorshipMeeting } from '../types/mentorship.types'
 
@@ -7,7 +7,7 @@ function sortByStartsAt(meetings: MentorshipMeeting[]): MentorshipMeeting[] {
 }
 
 /** טוען את פגישות הליווי הנגישות למשתמש הנוכחי (לפי RLS) ומחזיק מסונכרן בזמן אמת */
-export function useMentorshipMeetings() {
+export function useMentorshipMeetings({ includeArchived = false }: { includeArchived?: boolean } = {}) {
   const [meetings, setMeetings] = useState<MentorshipMeeting[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -53,5 +53,11 @@ export function useMentorshipMeetings() {
     }
   }, [])
 
-  return { meetings, loading, error }
+  const refresh = useCallback(async () => {
+    const { data, error } = await supabase.from('mentorship_meetings').select('*')
+    if (error) throw Error(error.message)
+    setMeetings(sortByStartsAt(data ?? []))
+  }, [])
+  const visible = useMemo(() => includeArchived ? meetings : meetings.filter(m => !m.archived_at), [meetings, includeArchived])
+  return { meetings: visible, loading, error, refresh }
 }

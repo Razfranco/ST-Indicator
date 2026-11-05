@@ -43,6 +43,8 @@ export type MentorshipMeeting = {
   topic: string | null
   notes: string | null
   consent_given: boolean
+  archived_at?: string | null
+  archived_by?: string | null
 }
 
 export type MentorshipMeetingInsert = Omit<MentorshipMeeting, 'id' | 'created_at'> &

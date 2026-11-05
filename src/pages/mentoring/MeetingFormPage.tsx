@@ -1,3 +1,5 @@
+import { archiveMeetings } from '../../lib/mentoringNotifications'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../../components/ui/alert-dialog'
 import { MeetingAiPanel } from './MeetingAiPanel'
 import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
@@ -102,6 +104,9 @@ export function MeetingFormPage() {
     consent_given: false,
   })
   const [consentSaved, setConsentSaved] = useState(false)
+  const [archived, setArchived] = useState(false)
+  const [confirmArchive, setConfirmArchive] = useState(false)
+  const [archiving, setArchiving] = useState(false)
   const [savingConsent, setSavingConsent] = useState(false)
   const [consentError, setConsentError] = useState('')
   const [saving, setSaving] = useState(false)
@@ -131,6 +136,7 @@ export function MeetingFormPage() {
           return
         }
         setConsentSaved(data.consent_given)
+        setArchived(!!data.archived_at)
         const { date, time } = splitIsoToDateAndTime(data.starts_at)
         setForm({
           student_id: data.student_id,
@@ -290,10 +296,18 @@ export function MeetingFormPage() {
     return <p className="py-10 text-center text-muted-foreground">טוען פגישה...</p>
   }
 
+  async function changeArchived(next: boolean) {
+    if (!id) return
+    setArchiving(true)
+    try { await archiveMeetings([id], next); toast.add({title: next ? 'הפגישה הוסרה מהיומן. החומרים נשמרו בארכיון.' : 'הפגישה שוחזרה ליומן',type:'success'}); navigate('/mentoring/meetings') }
+    catch(e) { setError((e as Error).message) }
+    finally { setArchiving(false); setConfirmArchive(false) }
+  }
   return (
     <div className="flex flex-col gap-5 pb-6">
       <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-        <h2 className="font-heading text-xl font-semibold">{isEditing ? 'עריכת פגישה' : 'פגישה חדשה'}</h2>
+        <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-heading text-xl font-semibold">{isEditing ? 'עריכת פגישה' : 'פגישה חדשה'}</h2>{isEditing && <Button type="button" variant={archived ? 'outline' : 'destructive'} disabled={archiving || saving || savingConsent} onClick={() => archived ? void changeArchived(false) : setConfirmArchive(true)}>{archived ? 'שחזור ליומן' : 'מחיקת פגישה מהיומן'}</Button>}</div>
+        {archived && <p role="status">הפגישה הוסרה מהיומן. ההקלטות והסיכומים זמינים בארכיון; יש לשחזר אותה לפני עדכון או עיבוד חדש.</p>}
 
         {error && (
           <Alert variant="destructive">
@@ -424,7 +438,7 @@ export function MeetingFormPage() {
           <Label className="flex items-center gap-2 text-sm font-normal text-foreground">
             <Checkbox
               checked={form.consent_given}
-              disabled={savingConsent || saving}
+              disabled={archived || savingConsent || saving}
               onCheckedChange={(checked) => void saveConsent(checked === true)}
             />
             התקבלה הסכמה להקלטה/תמלול
@@ -434,7 +448,7 @@ export function MeetingFormPage() {
         </Section>
 
         <FormSaveBar>
-          <Button type="submit" disabled={saving || savingConsent} size="lg" className="w-full">
+          <Button type="submit" disabled={archived || saving || savingConsent} size="lg" className="w-full">
             {saving ? 'שומר...' : isEditing ? 'עדכון פגישה' : 'שמירת פגישה'}
           </Button>
         </FormSaveBar>
@@ -499,7 +513,7 @@ export function MeetingFormPage() {
       )}
       {isEditing && id && <MeetingAiPanel
         meetingId={id}
-        consentSaved={consentSaved}
+        consentSaved={consentSaved && !archived}
         hasSavedTranscript={!!transcript?.transcript_text.trim()}
         onCopyTranscript={text => {
           setTranscriptText(text)
@@ -507,6 +521,7 @@ export function MeetingFormPage() {
           toast.add({ title: 'התמליל הועתק לשדה. בדוק אותו ולחץ על שמירת תמליל.', type: 'success' })
         }}
       />}
+      <AlertDialog open={confirmArchive} onOpenChange={setConfirmArchive}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>מחיקת פגישה מהיומן</AlertDialogTitle><AlertDialogDescription>הפגישה תוסר מהיומן ותפסיק להפיק תזכורות. ההקלטות והסיכומים יישמרו בארכיון, וניתן יהיה לשחזר אותה.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>ביטול</AlertDialogCancel><AlertDialogAction variant="destructive" disabled={archiving} onClick={() => void changeArchived(true)}>מחיקה מהיומן</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
     </div>
   )
 }

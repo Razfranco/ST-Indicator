@@ -25,7 +25,7 @@ const dimensions = {
 };
 export function StudentProfilesPage() {
   const { students } = useStudents(),
-    { meetings } = useMentorshipMeetings(),
+    { meetings } = useMentorshipMeetings({ includeArchived: true }),
     [params, setParams] = useSearchParams();
   const selected = params.get("student") ?? students[0]?.id ?? "";
   const [profiles, setProfiles] = useState<StudentProfile[]>([]),

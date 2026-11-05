@@ -1,7 +1,7 @@
+import { archiveMeetings } from '../../lib/mentoringNotifications'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Calendar as CalendarIcon, CalendarX, List as ListIcon, Plus } from 'lucide-react'
-import { supabase } from '../../lib/supabaseClient'
 import { useAuth } from '../../context/AuthContext'
 import { useMentorshipMeetings } from '../../lib/useMentorshipMeetings'
 import { useMeetingTranscripts } from '../../lib/useMeetingTranscripts'
@@ -88,7 +88,7 @@ type View = 'calendar' | 'list'
 export function MeetingsPage() {
   const { profile } = useAuth()
   const isAdmin = profile?.role === 'admin'
-  const { meetings, loading, error: loadError } = useMentorshipMeetings()
+  const { meetings, loading, error: loadError, refresh } = useMentorshipMeetings({ includeArchived: true })
   const { transcripts } = useMeetingTranscripts()
   const { students } = useStudents()
   const { profiles } = useProfiles()
@@ -96,6 +96,8 @@ export function MeetingsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
 
   const [view, setView] = useState<View>('calendar')
+  const [showArchived, setShowArchived] = useState(false)
+  const [restoringId, setRestoringId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
@@ -153,6 +155,7 @@ export function MeetingsPage() {
 
   const filtered = useMemo(() => {
     return meetings.filter((m) => {
+      if (Boolean(m.archived_at) !== showArchived) return false
       if (statusFilter && m.status !== statusFilter) return false
       if (channelFilter && m.channel !== channelFilter) return false
       if (studentFilter && m.student_id !== studentFilter) return false
@@ -160,7 +163,7 @@ export function MeetingsPage() {
       if (toDate && m.starts_at > toDate + 'T23:59:59') return false
       return true
     })
-  }, [meetings, statusFilter, channelFilter, studentFilter, fromDate, toDate])
+  }, [meetings, showArchived, statusFilter, channelFilter, studentFilter, fromDate, toDate])
 
   const sorted = useMemo(() => {
     if (!sortField) return filtered
@@ -235,7 +238,8 @@ export function MeetingsPage() {
     if (!confirmDeleteId) return
     const id = confirmDeleteId
     setDeletingId(id)
-    const { error } = await supabase.from('mentorship_meetings').delete().eq('id', id)
+    let error: Error | null = null
+    try { await archiveMeetings([id]); await refresh() } catch (e) { error = e as Error }
     setDeletingId(null)
     setConfirmDeleteId(null)
     if (error) {
@@ -243,14 +247,15 @@ export function MeetingsPage() {
       toast.add({ title: 'שגיאה', description: error.message, type: 'error' })
       return
     }
-    toast.add({ title: 'הפגישה נמחקה', type: 'success' })
+    toast.add({ title: 'הפגישה הוסרה מהיומן. החומרים נשמרו וניתן לשחזר.', type: 'success' })
   }
 
   async function confirmBulkDeleteAction() {
     const ids = Array.from(selectedIds)
     if (ids.length === 0) return
     setBulkDeleting(true)
-    const { error } = await supabase.from('mentorship_meetings').delete().in('id', ids)
+    let error: Error | null = null
+    try { await archiveMeetings(ids); await refresh() } catch (e) { error = e as Error }
     setBulkDeleting(false)
     setConfirmBulkDelete(false)
     if (error) {
@@ -262,6 +267,12 @@ export function MeetingsPage() {
     setSelectedIds(new Set())
   }
 
+  async function restore(id: string) {
+    setRestoringId(id)
+    try { await archiveMeetings([id], false); await refresh(); toast.add({title:'הפגישה שוחזרה ליומן',type:'success'}) }
+    catch(e) { setActionError((e as Error).message) }
+    finally { setRestoringId(null) }
+  }
   function formatStartsAt(iso: string) {
     return new Date(iso).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' })
   }
@@ -275,6 +286,8 @@ export function MeetingsPage() {
         </Button>
       </div>
 
+      <div className="flex gap-2"><Button variant="outline" onClick={() => { setShowArchived(v => !v); setSelectedIds(new Set()) }}>{showArchived ? 'חזרה לפגישות ביומן' : 'פגישות שנמחקו / שחזור'}</Button></div>
+      {showArchived && <p className="text-sm text-muted-foreground">הפגישות האלה הוסרו מהיומן. ההקלטות והסיכומים נשמרו בארכיון, וניתן לשחזר את הפגישה.</p>}
       {error && (
         <Alert variant="destructive">
           <AlertDescription className="text-destructive">{error}</AlertDescription>
@@ -395,21 +408,16 @@ export function MeetingsPage() {
                 </div>
                 <div className="flex flex-col gap-0.5 overflow-hidden">
                   {cell.meetings.slice(0, 3).map((m) => (
-                    <Link
-                      key={m.id}
-                      to={`/mentoring/meetings/${m.id}/edit`}
-                      className={`flex items-center gap-1 truncate rounded px-1 py-0.5 text-[10px] font-medium ${statusClass[m.status]}`}
-                      title={`${formatTime(m.starts_at)} · ${studentById.get(m.student_id)?.display_name ?? ''}`}
-                    >
-                      {missingTranscript(m) && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-red-500" />}
-                      <span dir="ltr" className="shrink-0">
-                        {formatTime(m.starts_at)}
-                      </span>
-                      <span className="truncate">{studentById.get(m.student_id)?.display_name ?? '—'}</span>
-                    </Link>
+                    <div key={m.id} className={`flex items-center gap-1 rounded px-1 py-0.5 text-[10px] font-medium ${statusClass[m.status]}`}>
+                      <Link to={`/mentoring/meetings/${m.id}/edit`} className="flex min-w-0 flex-1 items-center gap-1" title={`${formatTime(m.starts_at)} · ${studentById.get(m.student_id)?.display_name ?? ''}`}>
+                        {missingTranscript(m) && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-red-500" />}
+                        <span dir="ltr" className="shrink-0">{formatTime(m.starts_at)}</span><span className="truncate">{studentById.get(m.student_id)?.display_name ?? '—'}</span>
+                      </Link>
+                      <button type="button" className="shrink-0 rounded px-1 py-1 underline" aria-label={`${showArchived ? 'שחזור' : 'מחיקת פגישה'}: ${studentById.get(m.student_id)?.display_name ?? ''}, ${formatTime(m.starts_at)}`} disabled={deletingId === m.id || restoringId === m.id} onClick={() => showArchived ? void restore(m.id) : setConfirmDeleteId(m.id)}>{showArchived ? 'שחזור' : 'מחיקה'}</button>
+                    </div>
                   ))}
                   {cell.meetings.length > 3 && (
-                    <span className="px-1 text-[10px] text-muted-foreground">+{cell.meetings.length - 3} עוד</span>
+                    <button type="button" className="px-1 text-[10px] text-muted-foreground underline" onClick={() => { setFromDate(cell.key); setToDate(cell.key); changeView('list') }}>+{cell.meetings.length - 3} עוד</button>
                   )}
                 </div>
               </div>
@@ -430,7 +438,7 @@ export function MeetingsPage() {
       ) : (
         <>
           <BulkActionBar count={selectedIds.size} onClear={() => setSelectedIds(new Set())}>
-            <Button variant="destructive" size="sm" onClick={() => setConfirmBulkDelete(true)} disabled={bulkDeleting}>
+            <Button variant="destructive" size="sm" disabled={showArchived || bulkDeleting} onClick={() => setConfirmBulkDelete(true)}>
               מחיקת {selectedIds.size} פגישות
             </Button>
           </BulkActionBar>
@@ -468,10 +476,10 @@ export function MeetingsPage() {
                     variant="link"
                     size="sm"
                     className="h-auto p-0 text-destructive"
-                    onClick={() => setConfirmDeleteId(m.id)}
+                    onClick={() => showArchived ? void restore(m.id) : setConfirmDeleteId(m.id)}
                     disabled={deletingId === m.id}
                   >
-                    מחיקה
+                    {showArchived ? 'שחזור' : 'מחיקה'}
                   </Button>
                 </div>
               </Card>
@@ -538,10 +546,10 @@ export function MeetingsPage() {
                             variant="link"
                             size="sm"
                             className="h-auto p-0 text-destructive"
-                            onClick={() => setConfirmDeleteId(m.id)}
+                            onClick={() => showArchived ? void restore(m.id) : setConfirmDeleteId(m.id)}
                             disabled={deletingId === m.id}
                           >
-                            מחיקה
+                            {showArchived ? 'שחזור' : 'מחיקה'}
                           </Button>
                         </div>
                       </TableCell>
@@ -558,7 +566,7 @@ export function MeetingsPage() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>מחיקת פגישה</AlertDialogTitle>
-            <AlertDialogDescription>פעולה זו אינה הפיכה. למחוק את הפגישה?</AlertDialogDescription>
+            <AlertDialogDescription>הפגישה תוסר מהיומן ותפסיק להפיק תזכורות. ההקלטות והסיכומים יישמרו בארכיון, וניתן יהיה לשחזר אותה. למחוק מהיומן?</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>ביטול</AlertDialogCancel>
@@ -573,7 +581,7 @@ export function MeetingsPage() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>מחיקת {selectedIds.size} פגישות</AlertDialogTitle>
-            <AlertDialogDescription>פעולה זו אינה הפיכה. למחוק את כל הפגישות שנבחרו?</AlertDialogDescription>
+            <AlertDialogDescription>הפגישות יוסרו מהיומן. ההקלטות והסיכומים יישמרו בארכיון וניתן יהיה לשחזר את הפגישות.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>ביטול</AlertDialogCancel>

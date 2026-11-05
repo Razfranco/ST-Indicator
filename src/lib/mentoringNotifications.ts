@@ -7,3 +7,9 @@ export async function notificationRequest<T>(body?:unknown):Promise<T>{
  if(!r.ok){const e=await r.json().catch(()=>({}));throw Error(e.error==='notifications_disabled'?'שליחת Push כבויה בהגדרות הכלליות או בהעדפות החשבון.':'לא ניתן לעדכן התראות כרגע. נסה שוב.')}
  return r.json()
 }
+
+export async function archiveMeetings(ids:string[],archived=true) {
+ if(ids.length>100)throw Error('אפשר למחוק או לשחזר עד 100 פגישות בכל פעולה.')
+ try { return await notificationRequest<{count:number}>({action:'meeting_archive',ids,archived}) }
+ catch { throw Error('לא ניתן לעדכן את מחיקת הפגישה כרגע. בדוק שיש לך הרשאה ונסה שוב.') }
+}
