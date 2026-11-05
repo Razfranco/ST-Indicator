@@ -195,14 +195,15 @@ export function CoverageReportPage() {
       )}
 
       {!loading && (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <StatTile label={isAdmin ? 'סה"כ במסלולי ליווי' : 'סה"כ תלמידים'} value={String(rows.length)} />
           <StatTile
             label="דורשים טיפול"
             value={String(missingCount)}
             tone={missingCount > 0 ? 'negative' : 'positive'}
           />
-          <StatTile label="מכוסים" value={String(rows.length - missingCount)} tone="positive" />
+          <StatTile label="פגישה משובצת / התקיימה" value={String(rows.filter(r=>r.severity==='ok').length)} tone="positive" />
+          <StatTile label="ללא פגישה — סיבה נרשמה" value={String(rows.filter(r=>r.severity==='skipped').length)} />
         </div>
       )}
 
