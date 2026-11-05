@@ -1,0 +1,46 @@
+-- Rollback-only access test. Requires an existing non-admin mentor account and an initialized worker.
+begin;
+do $$
+declare mentor uuid; other_user uuid; student uuid:=gen_random_uuid(); own uuid:=gen_random_uuid(); other_meeting uuid:=gen_random_uuid(); run_id uuid:=gen_random_uuid(); audio_run uuid:=gen_random_uuid(); own_event uuid:=gen_random_uuid(); other_event uuid:=gen_random_uuid(); business_event uuid:=gen_random_uuid(); denied boolean:=false; settings_count integer; prefs jsonb; mail text;
+begin
+ select id,email into strict mentor,mail from profiles where mentor_access and role<>'admin' order by (lower(email)='ofeko1507@gmail.com') desc limit 1;
+ select id into strict other_user from profiles where id<>mentor limit 1;
+ update profiles set approved=false,business_access=false where id=mentor;
+ insert into students(id,display_name) values(student,'Synthetic independent access check');
+ insert into mentor_assignments(student_id,mentor_user_id) values(student,mentor);
+ insert into mentorship_meetings(id,student_id,mentor_user_id,starts_at,channel,consent_given) values(own,student,mentor,now(),'google_meet',true),(other_meeting,student,other_user,now(),'google_meet',true);
+ perform set_config('request.jwt.claim.sub',mentor::text,true);
+ execute 'set local role authenticated';
+ if public.is_approved() then raise exception 'Performance access unexpectedly granted';end if;
+ if not public.can_access_mentoring_meeting(own) or public.can_access_mentoring_meeting(other_meeting) then raise exception 'Meeting scope failed';end if;
+ if not public.can_manage_mentoring_student(student) then raise exception 'Assigned student access failed';end if;
+ select count(*) into settings_count from mentoring_ai_settings;
+ if settings_count<>1 then raise exception 'Mentor cannot read summary settings';end if;
+ if not public.mentoring_ai_queue_ready() then raise exception 'Mentor queue not ready';end if;
+ insert into meeting_transcripts(meeting_id,transcript_text,uploaded_by) values(own,'Synthetic test transcript, no real student content.',mentor);
+ perform public.create_mentoring_ai_run(audio_run,own,'synthetic.m4a',256,false);
+ if not exists(select 1 from meeting_ai_runs where id=audio_run and recording_path=own::text||'/'||audio_run::text||'/recording.m4a') then raise exception 'Audio upload run denied';end if;
+ perform public.create_mentoring_ai_run(run_id,own,null,null,true);
+ perform public.enqueue_mentoring_ai_job(run_id,null);
+ prefs:=public.read_notification_preferences();
+ if jsonb_array_length(prefs)<>1 or prefs->0->>'userId'<>mentor::text then raise exception 'Preference scope failed';end if;
+ perform public.save_notification_preferences(mentor,true,true,array[mail]);
+ begin perform public.save_notification_preferences(other_user,true,true,array[mail]); exception when others then denied:=true;end;
+ if not denied then raise exception 'Other preferences were editable';end if;
+ execute 'reset role';
+ if not public.mentoring_ai_creator_allowed(run_id) then raise exception 'Worker rejected mentor-only creator';end if;
+ insert into platform_notification_events(id,event_key,module,kind,entity_id,mentor_id,subject,body,path) values(own_event,'synthetic-own-'||own_event,'mentoring','summary_ready',run_id,mentor,'Synthetic','Synthetic','/mentoring/meetings/'||own||'/edit'),(other_event,'synthetic-other-'||other_event,'mentoring','summary_ready',other_meeting,other_user,'Synthetic','Synthetic','/mentoring/meetings/'||other_meeting||'/edit'),(business_event,'synthetic-business-'||business_event,'business','test',student,null,'Synthetic','Synthetic','/business/trials');
+ if not public.platform_notification_allowed(mentor,own_event) or public.platform_notification_allowed(mentor,other_event) or public.platform_notification_allowed(mentor,business_event) then raise exception 'Notification scope failed';end if;
+ update mentorship_meetings set consent_given=false where id=own;
+ if public.mentoring_ai_creator_allowed(run_id) then raise exception 'Revoked consent accepted';end if;
+ update mentorship_meetings set consent_given=true,archived_at=now() where id=own;
+ if public.mentoring_ai_creator_allowed(run_id) then raise exception 'Archived meeting accepted';end if;
+ update profiles set mentor_access=false,approved=true where id=mentor;
+ if public.can_access_mentoring_meeting(own) or public.mentoring_ai_creator_allowed(run_id) then raise exception 'Performance-only user accepted';end if;
+ execute 'set local role authenticated';
+ select count(*) into settings_count from mentoring_ai_settings;
+ if settings_count<>0 then raise exception 'Performance-only settings exposure';end if;
+ execute 'reset role';
+end $$;
+select 'independent_mentoring_access_rls_queue_consent_notifications_passed' as result;
+rollback;
