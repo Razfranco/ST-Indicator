@@ -1,3 +1,4 @@
+import { SettingsLink } from '../components/SettingsLink'
 import { Navigate, Link } from 'react-router-dom'
 import { BarChart3, Briefcase, GraduationCap } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
@@ -36,7 +37,8 @@ export function PlatformSelectPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-8 bg-background px-6 text-foreground">
+    <div className="relative flex min-h-screen flex-col items-center justify-center gap-8 bg-background px-6 text-foreground">
+      <SettingsLink className="absolute left-4 top-[max(1rem,env(safe-area-inset-top))]" />
       <div className="flex flex-col items-center gap-2">
         <div className="h-16 w-16 overflow-hidden rounded-2xl bg-white p-1.5 shadow-sm ring-1 ring-border">
           <img src="/icons/icon-512.png" alt="" className="h-full w-full object-contain" />

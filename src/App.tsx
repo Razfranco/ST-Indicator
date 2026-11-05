@@ -136,6 +136,7 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route path="/settings" element={<ProtectedRoute><Layout navItems={[]}><Suspense fallback={<PageFallback />}><h2 className="mb-4 text-2xl font-semibold">הגדרות</h2><NotificationSettingsPage /></Suspense></Layout></ProtectedRoute>} />
           <Route path="/performance" element={performancePage(<TradeListPage />)} />
           <Route path="/performance/new" element={performancePage(<TradeFormPage />)} />
           <Route path="/performance/edit/:id" element={performancePage(<TradeFormPage />)} />
@@ -170,7 +171,7 @@ function App() {
             }
           />
           <Route path="/business" element={<Navigate to="/business/customers" replace />} />
-          <Route path="/business/notifications" element={businessPage(<NotificationSettingsPage />)} />
+          <Route path="/business/notifications" element={<ProtectedRoute><Navigate to="/settings" replace /></ProtectedRoute>} />
           <Route path="/business/customers" element={businessPage(<CustomersPage />)} />
           <Route path="/business/customers/new" element={businessPage(<CustomerFormPage />)} />
           <Route path="/business/customers/:id/edit" element={businessPage(<CustomerFormPage />)} />
@@ -183,7 +184,7 @@ function App() {
           <Route path="/business/cashflow" element={businessPage(<CashflowPage />)} />
           <Route path="/business/treasury" element={businessPage(<TreasuryPage />)} />
           <Route path="/mentoring" element={<Navigate to="/mentoring/meetings" replace />} />
-          <Route path="/mentoring/notifications" element={mentoringPage(<NotificationSettingsPage />)} />
+          <Route path="/mentoring/notifications" element={<ProtectedRoute><Navigate to="/settings" replace /></ProtectedRoute>} />
           <Route path="/mentoring/profiles" element={mentoringPage(<StudentProfilesPage />)} />
           <Route path="/mentoring/ai-settings" element={mentoringPage(<AiSettingsPage />)} />
           <Route path="/mentoring/meetings" element={mentoringPage(<MeetingsPage />)} />

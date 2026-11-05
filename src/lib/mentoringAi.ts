@@ -13,6 +13,8 @@ export type AiSummary = {
   sufficient_source: boolean;
 };
 export type AiRun = {
+  queued_at?: string | null;
+  queue_state?: 'waiting' | 'running' | 'completed' | 'failed' | null;
   id: string;
   meeting_id: string;
   created_at: string;

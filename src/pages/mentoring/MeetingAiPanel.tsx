@@ -41,6 +41,7 @@ export function MeetingAiPanel({
     [selectedId, setSelectedId] = useState(""),
     [loading, setLoading] = useState(true),
     [ready, setReady] = useState(false),
+    [backgroundReady, setBackgroundReady] = useState(false),
     [busy, setBusy] = useState(false),
     [progress, setProgress] = useState(""),
     [error, setError] = useState(""),
@@ -89,11 +90,12 @@ export function MeetingAiPanel({
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    void Promise.all([load(), mentoringRequest<{ ready: boolean }>()])
+    void Promise.all([load(), mentoringRequest<{ ready: boolean; backgroundReady?: boolean }>()])
       .then(([rows, health]) => {
         if (!cancelled) {
           setSelectedId(rows[0]?.id ?? "");
           setReady(health.ready);
+          setBackgroundReady(!!health.backgroundReady);
         }
       })
       .catch((e) => {
@@ -110,12 +112,23 @@ export function MeetingAiPanel({
   useEffect(() => {
     setAudioUrl("");
   }, [selected?.id]);
+  const selectedSummaryText = selected?.summary ? summaryText(selected.summary) : "";
   useEffect(() => {
-    setReview(
-      selected?.reviewed_text ??
-        (selected?.summary ? summaryText(selected.summary) : ""),
-    );
-  }, [selected?.id, selected?.reviewed_text, selected?.summary]);
+    setReview(selected?.reviewed_text ?? selectedSummaryText);
+  }, [selected?.id, selected?.reviewed_text, selectedSummaryText]);
+  useEffect(() => {
+    if (!backgroundReady || !runs.some(r => r.queue_state === 'waiting' || r.queue_state === 'running')) return;
+    const timer = window.setInterval(() => { void load().catch(() => undefined); }, 8000);
+    return () => window.clearInterval(timer);
+  }, [backgroundReady, runs, load]);
+  async function enqueueRun(id: string) {
+    setProgress('שומר משימה בתור העיבוד…');
+    await mentoringRequest<AiRun>({ action: 'enqueue', id });
+    if (mounted.current) {
+      await load();
+      toast.add({ title: 'ההעלאה הושלמה והעיבוד נשמר בתור. אפשר לסגור את המסך.', type: 'success' });
+    }
+  }
   async function processRun(id: string) {
     for (let step = 0; step < 2; step++) {
       if (mounted.current)
@@ -168,9 +181,11 @@ export function MeetingAiPanel({
             "העלאת ההקלטה לא הושלמה. אפשר להתחיל מחדש; לא בוצע תמלול.",
           );
       }
-      await processRun(run.id);
-      if (mounted.current)
-        toast.add({ title: "התמליל וטיוטת הסיכום נשמרו", type: "success" });
+      if (backgroundReady) await enqueueRun(run.id);
+      else {
+        await processRun(run.id);
+        if (mounted.current) toast.add({ title: "התמליל וטיוטת הסיכום נשמרו", type: "success" });
+      }
     } catch (e) {
       if (mounted.current) {
         setError((e as Error).message);
@@ -188,7 +203,8 @@ export function MeetingAiPanel({
     setBusy(true);
     setError("");
     try {
-      await processRun(selected.id);
+      if (backgroundReady) await enqueueRun(selected.id);
+      else await processRun(selected.id);
     } catch (e) {
       setError((e as Error).message);
       await load().catch(() => undefined);
@@ -311,8 +327,10 @@ export function MeetingAiPanel({
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            השאר את המסך פתוח עד סיום שני השלבים. אם העיבוד נקטע, השלבים שהושלמו
-            נשמרים וניתן להמשיך מהם. כל עיבוד חדש יוצר גרסה נוספת ושימוש ב־API.
+            {backgroundReady
+              ? 'יש להשאיר את המסך פתוח רק עד שההעלאה והוספת המשימה לתור הושלמו. לאחר הודעת האישור אפשר לסגור את המסך; השרת ימשיך לתמלל ולסכם. פוש בסיום יישלח למכשירים שבהם הפעלת התראות, לפי הגדרות החשבון.'
+              : 'השאר את המסך פתוח עד סיום שני השלבים. אם העיבוד נקטע, השלבים שהושלמו נשמרים וניתן להמשיך מהם.'}
+            {' '}כל עיבוד חדש יוצר גרסה נוספת ושימוש ב־API.
           </p>
           {busy && <p role="status">{progress || "שומר…"}</p>}
           {runs.length > 0 && (
@@ -334,7 +352,7 @@ export function MeetingAiPanel({
           )}
           {selected && (
             <div className="space-y-4 rounded-lg border border-border p-4">
-              <p className="font-medium">{statusLabel[selected.status]}</p>
+              <p className="font-medium">{selected.queue_state === 'waiting' ? 'בתור לעיבוד בשרת — אפשר לסגור את המסך' : selected.queue_state === 'running' ? statusLabel[selected.status] + ' בשרת — אפשר לסגור את המסך' : statusLabel[selected.status]}</p>
               {selected.recording_path && (
                 <div className="space-y-2">
                   <Button
@@ -387,7 +405,7 @@ export function MeetingAiPanel({
                 <Button
                   type="button"
                   variant="outline"
-                  disabled={busy || !ready || !consentSaved}
+                  disabled={busy || !ready || !consentSaved || selected.queue_state === 'waiting' || selected.queue_state === 'running'}
                   onClick={() => void resume()}
                 >
                   המשך עיבוד / ניסיון נוסף

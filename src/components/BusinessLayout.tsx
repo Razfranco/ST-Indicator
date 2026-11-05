@@ -11,7 +11,6 @@ const tabs = [
   { to: '/business/expenses', label: 'הוצאות' },
   { to: '/business/cashflow', label: 'תזרים' },
   { to: '/business/treasury', label: 'קופה' },
-  { to: '/business/notifications', label: 'הגדרות התראות' },
 ]
 
 export function BusinessLayout({ children }: { children: ReactNode }) {

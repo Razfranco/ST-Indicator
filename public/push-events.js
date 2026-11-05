@@ -1,4 +1,4 @@
-/* Private meeting details are shown only after login. */
+/* Push previews include the event description as requested by the account owner. */
 self.addEventListener('push',event=>{
  let data={};try{data=event.data?event.data.json():{}}catch{/* Always display a visible notification. */}
  const safe=typeof data.url==='string' && /^\/(mentoring|business)\//.test(data.url)?data.url:'/mentoring/notifications';

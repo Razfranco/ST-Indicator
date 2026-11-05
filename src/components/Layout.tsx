@@ -1,3 +1,4 @@
+import { SettingsLink } from './SettingsLink'
 import type { ComponentType, ReactNode } from 'react'
 import { Link, NavLink } from 'react-router-dom'
 import { ArrowLeftRight, BarChart3, FileText, List, Plus, ShieldCheck } from 'lucide-react'
@@ -41,6 +42,7 @@ export function Layout({ children, navItems }: { children: ReactNode; navItems: 
             <Button variant="outline" size="sm" onClick={() => signOut()}>
               יציאה
             </Button>
+            <SettingsLink />
           </div>
         </div>
         <nav className="mx-auto hidden max-w-3xl gap-1 px-4 pb-2 sm:flex">
