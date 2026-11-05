@@ -102,6 +102,8 @@ export function MeetingFormPage() {
     consent_given: false,
   })
   const [consentSaved, setConsentSaved] = useState(false)
+  const [savingConsent, setSavingConsent] = useState(false)
+  const [consentError, setConsentError] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(isEditing)
@@ -173,6 +175,28 @@ export function MeetingFormPage() {
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((f) => ({ ...f, [key]: value }))
+  }
+
+  async function saveConsent(checked: boolean) {
+    if (savingConsent || saving) return
+    const previous = consentSaved
+    update('consent_given', checked)
+    setConsentError('')
+    if (!isEditing || !id) return
+    setSavingConsent(true)
+    // Revocation blocks processing immediately; granting waits for durable save.
+    setConsentSaved(false)
+    try {
+      const { data, error } = await supabase.from('mentorship_meetings')
+        .update({ consent_given: checked }).eq('id', id).select('consent_given').single()
+      if (error || !data) throw Error('לא ניתן לשמור את ההסכמה. נסה שוב.')
+      setConsentSaved(data.consent_given)
+      update('consent_given', data.consent_given)
+    } catch {
+      update('consent_given', previous)
+      setConsentSaved(previous)
+      setConsentError('ההסכמה לא נשמרה. בדוק את החיבור ונסה שוב.')
+    } finally { setSavingConsent(false) }
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -400,14 +424,17 @@ export function MeetingFormPage() {
           <Label className="flex items-center gap-2 text-sm font-normal text-foreground">
             <Checkbox
               checked={form.consent_given}
-              onCheckedChange={(checked) => update('consent_given', checked === true)}
+              disabled={savingConsent || saving}
+              onCheckedChange={(checked) => void saveConsent(checked === true)}
             />
             התקבלה הסכמה להקלטה/תמלול
           </Label>
+          {isEditing && <p className="text-xs text-muted-foreground" role="status">{savingConsent ? 'שומר את ההסכמה…' : consentSaved ? 'ההסכמה נשמרה. אפשר להעלות הקלטה מיד.' : 'שינוי ההסכמה נשמר אוטומטית.'}</p>}
+          {consentError && <p role="alert" className="text-sm text-destructive">{consentError}</p>}
         </Section>
 
         <FormSaveBar>
-          <Button type="submit" disabled={saving} size="lg" className="w-full">
+          <Button type="submit" disabled={saving || savingConsent} size="lg" className="w-full">
             {saving ? 'שומר...' : isEditing ? 'עדכון פגישה' : 'שמירת פגישה'}
           </Button>
         </FormSaveBar>
