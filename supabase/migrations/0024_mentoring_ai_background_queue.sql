@@ -60,9 +60,9 @@ begin
  if not mentoring_ai_worker_authorized(p_key) then raise exception 'unauthorized';end if;
  update mentoring_ai_jobs j set state='failed',recording_url=null,updated_at=now()
  where state in ('waiting','running') and (expires_at<now() or not mentoring_ai_creator_allowed(j.run_id));
- update mentoring_ai_jobs j set state='failed',recording_url=null,updated_at=now() from meeting_ai_runs r
- where j.run_id=r.id and j.state in ('waiting','running') and (r.locked_until is null or r.locked_until<now())
- and ((nullif(trim(r.transcript_text),'') is null and r.transcription_attempts>=3) or (nullif(trim(r.transcript_text),'') is not null and r.summary_attempts>=3));
+ update mentoring_ai_jobs j set state='failed',recording_url=null,updated_at=now() from meeting_ai_runs prior
+ where j.run_id=prior.id and j.state in ('waiting','running') and (prior.locked_until is null or prior.locked_until<now())
+ and ((nullif(trim(prior.transcript_text),'') is null and prior.transcription_attempts>=3) or (nullif(trim(prior.transcript_text),'') is not null and prior.summary_attempts>=3));
  select j.run_id into picked from mentoring_ai_jobs j join meeting_ai_runs m on m.id=j.run_id
  where j.state in ('waiting','running') and j.available_at<=now() and j.expires_at>now() and m.status<>'completed'
  and (m.locked_until is null or m.locked_until<now()) and mentoring_ai_creator_allowed(m.id)
