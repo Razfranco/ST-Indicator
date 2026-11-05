@@ -8,6 +8,7 @@ import { promisify } from 'node:util'
 import assert from 'node:assert/strict'
 const directory = await mkdtemp(join(tmpdir(), 'st-compression-browser-'))
 try {
+ const base = process.env.ST_AUDIO_TEST_URL || 'http://127.0.0.1:5173'
  const path = join(directory, 'sample.m4a')
  await promisify(execFile)('ffmpeg', ['-v','error','-f','lavfi','-i','sine=frequency=440:duration=10','-c:a','aac','-b:a','128k',path])
  // A valid large free atom verifies large M4A container handling without an enormous test recording.
@@ -20,10 +21,10 @@ try {
    const external = []
    await page.route('**/*', route => {
     const url = new URL(route.request().url())
-    if (url.hostname !== '127.0.0.1' && !route.request().url().startsWith('blob:http://127.0.0.1:5173/')) { external.push(url.hostname); return route.abort() }
+    if (url.origin !== new URL(base).origin) { external.push(url.hostname); return route.abort() }
     return route.continue()
    })
-   await page.goto((process.env.ST_AUDIO_TEST_URL || 'http://127.0.0.1:5173') + '/tests/recordingCompression.browser.html')
+   await page.goto(base + '/tests/recordingCompression.browser.html')
    await page.locator('#source').setInputFiles(path)
    await page.locator('#start').click()
    await page.waitForFunction(() => document.querySelector('#result').textContent.startsWith('{'), { timeout: 60000 })
