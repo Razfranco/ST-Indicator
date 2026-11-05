@@ -1,3 +1,4 @@
+import { formatTrialExpiry } from '../../lib/format'
 import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
@@ -122,10 +123,6 @@ function compareNullableTime(a: string | null, b: string | null): number {
   return at - bt
 }
 
-function formatTrialExpiry(value: string | null) {
-  if (!value) return '—'
-  return value.includes('T') ? new Date(value).toLocaleString('he-IL') : value
-}
 
 function FollowUpCell({ followUpAt }: { followUpAt: string | null }) {
   if (!followUpAt) return <span className="text-muted-foreground">—</span>
@@ -173,7 +170,7 @@ function LeadCard({
     <Card className={`gap-2 p-3 shadow-sm ${needsAttention ? 'border-e-2 border-e-destructive bg-destructive/5' : ''}`}>
       <div className="flex items-center justify-between gap-2 px-4">
         <div className="flex items-center gap-2">
-          {externalActions === undefined && <Checkbox checked={selected} onCheckedChange={onToggleSelected} aria-label={`בחירת ${l.full_name}`} />}
+          <Checkbox checked={selected} onCheckedChange={onToggleSelected} aria-label={`בחירת ${l.full_name}`} />
           <span className="font-medium text-foreground">{l.full_name}</span>
         </div>
         <div className="flex flex-wrap items-center gap-1">
@@ -223,6 +220,7 @@ function LeadCard({
         <Button variant="ghost" size="sm" onClick={onEdit} className="text-muted-foreground hover:text-primary">
           עריכה
         </Button>
+        </> : externalActions}
         <Button
           variant="ghost"
           size="sm"
@@ -232,7 +230,6 @@ function LeadCard({
         >
           מחיקה
         </Button>
-        </> : externalActions}
       </div>
     </Card>
   )
@@ -341,7 +338,7 @@ function LeadFormFields({
   )
 }
 
-export type ExternalTrialRow = Lead & { actions: ReactNode }
+export type ExternalTrialRow = Lead & { actions: ReactNode; onDelete: () => Promise<void> }
 const noExternalRows: ExternalTrialRow[] = []
 
 export function LeadsPage({trialsOnly=false, externalTrials=noExternalRows}:{trialsOnly?:boolean; externalTrials?:ExternalTrialRow[]}) {
@@ -450,7 +447,7 @@ export function LeadsPage({trialsOnly=false, externalTrials=noExternalRows}:{tri
     })
   }
 
-  const selectable = sorted.filter(l => !externalById.has(l.id))
+  const selectable = sorted
   const allVisibleSelected = selectable.length > 0 && selectable.every((l) => selectedIds.has(l.id))
 
   function toggleSelectAll(checked: boolean) {
@@ -546,20 +543,31 @@ export function LeadsPage({trialsOnly=false, externalTrials=noExternalRows}:{tri
 
   async function handleDeleteMany(ids: string[]) {
     setDeletingIds(new Set(ids))
-    const { error } = await supabase.from('leads').delete().in('id', ids)
-    setDeletingIds(new Set())
-    setPendingDeleteIds(null)
-    if (error) {
-      toast.add({ title: 'שגיאה במחיקה', description: error.message, type: 'error' })
-      setActionError(error.message)
-      return
+    setActionError(null)
+    const deleted = new Set<string>()
+    const failures: string[] = []
+    const localIds = ids.filter(id => !externalById.has(id))
+    try {
+      for (const id of ids.filter(id => externalById.has(id))) {
+        try { await externalById.get(id)!.onDelete(); deleted.add(id) }
+        catch (e) { failures.push((e as Error).message) }
+      }
+      if (localIds.length) {
+        const { error } = await supabase.from('leads').delete().in('id', localIds)
+        if (error) failures.push(error.message)
+        else localIds.forEach(id => deleted.add(id))
+      }
+      if (deleted.size) toast.add({ title: `${deleted.size} רשומות הוסרו`, type: 'success' })
+      if (failures.length) {
+        const message = failures.join(' · ')
+        setActionError(message)
+        toast.add({ title: 'חלק מהרשומות לא נמחקו', description: message, type: 'error' })
+      }
+      setSelectedIds(prev => new Set([...prev].filter(id => !deleted.has(id))))
+    } finally {
+      setDeletingIds(new Set())
+      setPendingDeleteIds(null)
     }
-    toast.add({ title: ids.length > 1 ? `${ids.length} לידים נמחקו` : 'הליד נמחק', type: 'success' })
-    setSelectedIds((prev) => {
-      const next = new Set(prev)
-      for (const id of ids) next.delete(id)
-      return next
-    })
   }
 
   return (
@@ -708,11 +716,11 @@ export function LeadsPage({trialsOnly=false, externalTrials=noExternalRows}:{tri
                   return (
                   <TableRow key={l.id} className={needsAttention ? 'border-e-2 border-e-destructive bg-destructive/5' : ''}>
                     <TableCell>
-                      {!externalById.has(l.id) && <Checkbox
+                      <Checkbox
                         checked={selectedIds.has(l.id)}
                         onCheckedChange={(checked: boolean) => toggleSelected(l.id, checked)}
                         aria-label={`בחירת ${l.full_name}`}
-                      />}
+                      />
                     </TableCell>
                     <TableCell className="font-medium text-foreground">{l.full_name}</TableCell>
                     <TableCell className="text-muted-foreground" dir="ltr">
@@ -749,6 +757,7 @@ export function LeadsPage({trialsOnly=false, externalTrials=noExternalRows}:{tri
                       >
                         עריכה
                       </Button>
+                      </>}
                       <Button
                         variant="ghost"
                         size="sm"
@@ -758,7 +767,6 @@ export function LeadsPage({trialsOnly=false, externalTrials=noExternalRows}:{tri
                       >
                         מחיקה
                       </Button>
-                      </>}
                     </TableCell>
                   </TableRow>
                   )
@@ -791,9 +799,9 @@ export function LeadsPage({trialsOnly=false, externalTrials=noExternalRows}:{tri
       <AlertDialog open={pendingDeleteIds != null} onOpenChange={(next: boolean) => !next && setPendingDeleteIds(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{(pendingDeleteIds?.length ?? 0) > 1 ? 'מחיקת לידים' : 'מחיקת ליד'}</AlertDialogTitle>
+            <AlertDialogTitle>{(pendingDeleteIds?.length ?? 0) > 1 ? (trialsOnly ? 'מחיקת אנשי ניסיון' : 'מחיקת לידים') : (trialsOnly ? 'מחיקת איש ניסיון' : 'מחיקת ליד')}</AlertDialogTitle>
             <AlertDialogDescription>
-              פעולה זו אינה הפיכה. למחוק{' '}
+              {pendingDeleteIds?.some(id => externalById.has(id)) ? 'מימושי קופון יוסרו מרשימת הניסיון ומהתזכורות. הרכישה והקופון שמומש יישמרו, והגישה ב־TradingView אינה מוסרת אוטומטית. רשומות רגילות שייבחרו יימחקו ללא אפשרות שחזור. למחוק' : 'פעולה זו אינה הפיכה. למחוק'}{' '}
               {(pendingDeleteIds?.length ?? 0) > 1 ? `${pendingDeleteIds?.length} לידים נבחרים` : 'את הליד'}?
             </AlertDialogDescription>
           </AlertDialogHeader>

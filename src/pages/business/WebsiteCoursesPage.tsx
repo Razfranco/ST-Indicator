@@ -1,3 +1,4 @@
+import { formatTrialExpiry } from '../../lib/format'
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useWebsitePurchases } from '../../lib/useWebsitePurchases'
@@ -117,9 +118,10 @@ export function WebsiteCoursesPage({ coupons = false }: { coupons?: boolean }) {
                   </p>
                   <p>
                     {t.redeemed_at
-                      ? `מומש ב־${new Date(t.redeemed_at).toLocaleString('he-IL')} · סיום: ${new Date(t.expires_at!).toLocaleString('he-IL')}`
+                      ? `מומש ב־${new Date(t.redeemed_at).toLocaleString('he-IL')} · סיום: ${formatTrialExpiry(t.expires_at)}`
                       : 'טרם מומש · תקופת הניסיון טרם התחילה'}
                   </p>
+                  {t.archived_at && <p>הוסר מרשימת תקופות הניסיון. פרטי הרכישה והמימוש נשמרו.</p>}
                   <a
                     className="inline-flex min-h-11 items-center underline"
                     href="https://sharktradebom.com/indicator/trial"

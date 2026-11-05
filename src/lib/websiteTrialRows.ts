@@ -6,7 +6,7 @@ export function grantedTrialRows(orders: WebsiteOrder[], trials: WebsiteTrial[])
   const byId = new Map(orders.map(order => [order.id, order]))
   return trials.flatMap(trial => {
     const order = byId.get(trial.order_id)
-    if (!order || !trial.redeemed_at || !trial.access_granted_at) return []
+    if (!order || !trial.redeemed_at || !trial.access_granted_at || trial.archived_at) return []
     return [{
       id: 'website-trial:' + trial.id,
       created_at: trial.redeemed_at,

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { formatTrialExpiry } from '../../lib/format'
 import { Link } from 'react-router-dom'
 import { LeadsPage, type ExternalTrialRow } from './LeadsPage'
 import { grantedTrialRows } from '../../lib/websiteTrialRows'
@@ -26,7 +27,7 @@ export function TrialsPage() {
   }
   const confirmedRows: ExternalTrialRow[] = grantedTrialRows(orders, trials).map(row => {
     const trial = trials.find(t => 'website-trial:' + t.id === row.id)!
-    return { ...row, actions: <div className="flex flex-wrap gap-2">
+    return { ...row, onDelete: async () => { await websiteRequest({ id: trial.id, action: 'archive' }); await refresh() }, actions: <div className="flex flex-wrap gap-2">
       <Link className="underline" to={'/business/courses/' + trial.order_id}>פרטי הרכישה והקופון</Link>
       {!trial.access_removed_at && <Button variant="outline" disabled={busy === trial.id} onClick={() => void act(trial.id, 'remove')}>סימון שהוסרה גישה</Button>}
       {!trial.notified_at && <Button variant="outline" disabled={busy === trial.id} onClick={() => void act(trial.id, 'retry')}>שליחת ההתראה למייל</Button>}
@@ -47,7 +48,7 @@ export function TrialsPage() {
       {loading && <p>טוען מימושים…</p>}
       <div className="grid gap-4 lg:grid-cols-2">
         {trials
-          .filter((t) => t.redeemed_at && !t.access_granted_at)
+          .filter((t) => t.redeemed_at && !t.access_granted_at && !t.archived_at)
           .map((t) => {
             const o = orders.find((o) => o.id === t.order_id)
             const expired = Date.now() >= new Date(t.expires_at!).getTime()
@@ -72,7 +73,7 @@ export function TrialsPage() {
                 <p>
                   תחילת ניסיון:{' '}
                   {new Date(t.redeemed_at!).toLocaleString('he-IL')} · סיום:{' '}
-                  {new Date(t.expires_at!).toLocaleString('he-IL')}
+                  {formatTrialExpiry(t.expires_at)}
                 </p>
                 <p>
                   {o?.status === 'refunded'

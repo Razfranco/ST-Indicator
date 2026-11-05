@@ -1,5 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { formatTrialExpiry } from '../src/lib/format.ts'
 import { grantedTrialRows } from '../src/lib/websiteTrialRows.ts'
 
 const order = { id: 'order-1', full_name: 'Test buyer', email: 'test@example.com', phone: '0500000000', status: 'paid' }
@@ -21,4 +22,16 @@ test('removed access remains visible as history, with resolved attention', () =>
   assert.match(rows[0].note, /גישה הוסרה/)
   assert.match(rows[0].note, /זוכתה/)
   assert.equal(trial.access_removed_at, null)
+})
+
+test('archived coupon trials stay out of the operational table', () => {
+  assert.equal(grantedTrialRows([order], [{ ...trial, archived_at: '2026-11-05T12:00:00Z' }]).length, 0)
+})
+
+test('trial expiry uses a padded date without time for both date columns and timestamps', () => {
+  assert.equal(formatTrialExpiry('2026-12-04'), '04.12.2026')
+  assert.equal(formatTrialExpiry('2026-12-04T11:32:08Z'), '04.12.2026')
+  assert.equal(formatTrialExpiry('2026-12-03T23:32:08Z'), '04.12.2026')
+  assert.equal(formatTrialExpiry(null), '—')
+  assert.equal(formatTrialExpiry('invalid'), '—')
 })

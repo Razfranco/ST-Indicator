@@ -31,6 +31,7 @@ export type WebsiteTrial = {
   notified_at: string | null
   access_granted_at: string | null
   access_removed_at: string | null
+  archived_at?: string | null
 }
 export type WebsiteData = {
   orders: WebsiteOrder[]
@@ -40,7 +41,7 @@ export type WebsiteData = {
 const endpoint = 'https://sharktradebom.com/api/business-platform'
 export async function websiteRequest(action?: {
   id: string
-  action: 'grant' | 'remove' | 'retry'
+  action: 'grant' | 'remove' | 'retry' | 'archive'
 }) {
   const {
     data: { session },
