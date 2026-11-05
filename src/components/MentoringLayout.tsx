@@ -9,9 +9,10 @@ const baseTabs = [
   { to: '/mentoring/students', label: 'תלמידים' },
   { to: '/mentoring/profiles', label: 'פרופילי ליווי וארכיון' },
   { to: '/mentoring/coverage', label: 'בקרת ליווי' },
+  { to: '/mentoring/notifications', label: 'הגדרות התראות' },
 ]
 
-const adminTabs = [{ to: '/mentoring/assignments', label: 'שיוכי מנטורים' }, { to: '/mentoring/ai-settings', label: 'הנחיות סיכום' }, { to: '/mentoring/notifications', label: 'הגדרות התראות' }]
+const adminTabs = [{ to: '/mentoring/assignments', label: 'שיוכי מנטורים' }, { to: '/mentoring/ai-settings', label: 'הנחיות סיכום' }]
 
 export function MentoringLayout({ children }: { children: ReactNode }) {
   const { profile } = useAuth()

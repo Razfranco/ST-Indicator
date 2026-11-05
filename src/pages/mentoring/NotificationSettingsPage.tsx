@@ -1,3 +1,4 @@
+import { NotificationPreferences } from './NotificationPreferences'
 import { useEffect,useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { notificationRequest } from '../../lib/mentoringNotifications'
@@ -7,10 +8,10 @@ export function NotificationSettingsPage(){
  const {profile}=useAuth()
  const [key,setKey]=useState(''),[registration,setRegistration]=useState<ServiceWorkerRegistration|null>(null),[subscription,setSubscription]=useState<PushSubscription|null>(null),[busy,setBusy]=useState(false),[message,setMessage]=useState('')
  const supported='serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
- useEffect(()=>{if(profile?.role!=='admin')return;let live=true
+ useEffect(()=>{if(!profile?.approved)return;let live=true
  void notificationRequest<{publicKey:string}>().then(r=>{if(live)setKey(r.publicKey??'')}).catch(()=>{if(live)setMessage('לא ניתן לטעון הגדרות התראות')})
  if(supported)void navigator.serviceWorker.ready.then(async r=>{const sub=await r.pushManager.getSubscription();if(live){setRegistration(r);setSubscription(sub)}})
- return()=>{live=false}},[profile?.role,supported])
+ return()=>{live=false}},[profile?.approved,supported])
  async function enable(){if(!registration||!key)return;setBusy(true);setMessage('')
  try{
   const permission=await Notification.requestPermission();if(permission!=='granted')throw Error('יש לאפשר התראות בהגדרות המכשיר והאפליקציה.')
@@ -20,6 +21,6 @@ export function NotificationSettingsPage(){
  }catch(e){setMessage((e as Error).message)}finally{setBusy(false)}}
  async function action(kind:'test'|'unsubscribe'){if(!subscription)return;setBusy(true);setMessage('')
  try{await notificationRequest({action:kind,subscription:subscription.toJSON()});if(kind==='unsubscribe'){await subscription.unsubscribe();setSubscription(null)}setMessage(kind==='test'?'התראת הבדיקה נשלחה לשירות ה־Push.':'התראות Push במכשיר הזה כובו.')}catch(e){setMessage((e as Error).message)}finally{setBusy(false)}}
- if(profile?.role!=='admin')return <p>הגדרות ההתראות זמינות למנהל בלבד.</p>
- return <div className="space-y-4"><h2 className="text-2xl font-semibold">הגדרות התראות ליווי</h2><Section title="התראות לנייד"><p>פגישה מתוכננת תסומן אוטומטית כהתקיימה אחרי שעת הסיום. ביטול או אי־הגעה יש לעדכן ידנית. כשחסרה הקלטה תישלח התראה למייל ולמכשירי מנהלים שבהם הופעל Push.</p><p className="text-sm text-muted-foreground">באייפון: פתח את הפלטפורמה מתוך האייקון במסך הבית ואז הפעל כאן התראות. ההפעלה נדרשת בנפרד בכל מכשיר. התראות מסך הנעילה אינן מציגות פרטי תלמיד.</p>{!supported?<p>Push אינו זמין בחלון הזה. פתח את האפליקציה המותקנת במסך הבית.</p>:<div className="flex flex-wrap gap-2">{!subscription?<Button disabled={busy||!key||!registration} onClick={()=>void enable()}>הפעלת Push במכשיר הזה</Button>:<><Button disabled={busy} onClick={()=>void action('test')}>שליחת התראת בדיקה</Button><Button variant="outline" disabled={busy} onClick={()=>void action('unsubscribe')}>כיבוי Push במכשיר הזה</Button></>}</div>}<p role="status" className="text-sm">{message}</p></Section></div>
+ if(!profile?.approved)return <p>נדרשת התחברות מאושרת.</p>
+ return <div className="space-y-4"><h2 className="text-2xl font-semibold">הגדרות התראות</h2><NotificationPreferences /><Section title="התראות לנייד"><p>פגישה מתוכננת תסומן אוטומטית כהתקיימה אחרי שעת הסיום. ביטול או אי־הגעה יש לעדכן ידנית. כשחסרה הקלטה תישלח התראה למייל ולמכשירים המורשים שבהם הופעל Push.</p><p className="text-sm text-muted-foreground">באייפון: פתח את הפלטפורמה מתוך האייקון במסך הבית ואז הפעל כאן התראות. ההפעלה נדרשת בנפרד בכל מכשיר. התראות מסך הנעילה אינן מציגות פרטי תלמיד.</p>{!supported?<p>Push אינו זמין בחלון הזה. פתח את האפליקציה המותקנת במסך הבית.</p>:<div className="flex flex-wrap gap-2">{!subscription?<Button disabled={busy||!key||!registration} onClick={()=>void enable()}>הפעלת Push במכשיר הזה</Button>:<><Button disabled={busy} onClick={()=>void action('test')}>שליחת התראת בדיקה</Button><Button variant="outline" disabled={busy} onClick={()=>void action('unsubscribe')}>כיבוי Push במכשיר הזה</Button></>}</div>}<p role="status" className="text-sm">{message}</p></Section></div>
 }

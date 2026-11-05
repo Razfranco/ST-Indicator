@@ -55,7 +55,7 @@ const reasonClass = (overdue: boolean) => (overdue ? 'text-destructive!' : 'text
  * כבר פג וטרם סומנו "גישה הוסרה"; לקוחות פעילים שהמנוי שלהם יסתיים בתוך שבוע
  * (עדיין לא פג — אזהרה מוקדמת); לידים "רלוונטי" עם פולו-אפ קבוע שקרוב (בתוך
  * שבוע) או שכבר עבר — ליד בלי פולו-אפ קבוע כלל לא מקבל התראה; ולידים
- * ב"תקופת ניסיון" שהתקופה שלהם מסתיימת (מיום לפני התום ואילך, כולל אחרי
+ * ב"תקופת ניסיון" שהתקופה שלהם מסתיימת (משבוע לפני התום ואילך, כולל אחרי
  * שכבר פגה) — נבדק אך ורק לפי תוקף התקופה, לא לפי פולו-אפ. תיאור באדום =
  * מועד שכבר עבר; תיאור רגיל = מועד קרוב שעוד לא הגיע. הרזולוציה קורית אך ורק
  * דרך הכניסה ללקוח/ליד עצמו — אין כאן כפתור "סגור התראה" מהחלונית, כדי שלא
@@ -67,7 +67,7 @@ export function NotificationsBell() {
   const { customers } = useCustomers()
   const { leads } = useLeads()
   const {trials,orders}=useWebsitePurchases()
-  const websiteAttention=trials.filter(t=>t.redeemed_at && (!t.access_granted_at || !t.notified_at || (!t.access_removed_at && new Date(t.expires_at!).getTime()<=Date.now()+86400000)))
+  const websiteAttention=trials.filter(t=>t.redeemed_at && (!t.access_granted_at || !t.notified_at || (!t.access_removed_at && new Date(t.expires_at!).getTime()<=Date.now()+7*86400000)))
 
   const expiredCustomers = useMemo(() => customers.filter(needsAccessRemoval), [customers])
   const expiringSoonCustomers = useMemo(() => customers.filter(customerExpiringSoon), [customers])

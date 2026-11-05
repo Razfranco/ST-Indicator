@@ -1,4 +1,7 @@
-import { useMemo, useState } from 'react'
+import { WeekExceptionControl,type WeekException } from './WeekExceptionControl'
+import { notificationRequest } from '../../lib/mentoringNotifications'
+import { weekStartKey,shiftDateKey,israelDateKey } from '../../lib/mentoringWeek'
+import { useEffect,useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ShieldAlert, UserX, CalendarX, CheckCircle2 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
@@ -19,9 +22,9 @@ import { EmptyState } from '../../components/EmptyState'
 import { toast } from '../../components/ui/toast'
 import type { Customer } from '../../types/business.types'
 
-type Severity = 'missing_student' | 'missing_meeting' | 'ok'
+type Severity = 'missing_student' | 'missing_meeting' | 'skipped' | 'ok'
 
-const severityRank: Record<Severity, number> = { missing_student: 0, missing_meeting: 1, ok: 2 }
+const severityRank: Record<Severity, number> = { missing_student: 0, missing_meeting: 1, skipped: 2, ok: 3 }
 
 interface Row {
   id: string
@@ -35,14 +38,14 @@ interface Row {
 }
 
 /** פגישה מתוזמנת הכי קרובה בשבוע הקרוב, לכל תלמיד */
-function buildNextMeetingByStudentId(meetings: ReturnType<typeof useMentorshipMeetings>['meetings']) {
-  const now = new Date()
-  const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
+function buildNextMeetingByStudentId(meetings: ReturnType<typeof useMentorshipMeetings>['meetings'], week:string) {
+  const end = shiftDateKey(week,7)
   const map = new Map<string, (typeof meetings)[number]>()
   for (const m of meetings) {
-    if (m.status !== 'scheduled') continue
+    if (m.status !== 'scheduled' && m.status !== 'completed') continue
     const start = new Date(m.starts_at)
-    if (start < now || start > weekFromNow) continue
+    const key=israelDateKey(start)
+    if (key < week || key >= end) continue
     const existing = map.get(m.student_id)
     if (!existing || start < new Date(existing.starts_at)) {
       map.set(m.student_id, m)
@@ -54,6 +57,13 @@ function buildNextMeetingByStudentId(meetings: ReturnType<typeof useMentorshipMe
 export function CoverageReportPage() {
   const { profile } = useAuth()
   const isAdmin = profile?.role === 'admin'
+
+  const [week,setWeek]=useState(()=>weekStartKey())
+  const [exceptions,setExceptions]=useState<WeekException[]>([])
+  const [exceptionsError,setExceptionsError]=useState('')
+  const [exceptionVersion,setExceptionVersion]=useState(0)
+  useEffect(()=>{let live=true;setExceptions([]);setExceptionsError('');void notificationRequest<WeekException[]>({action:'week_exceptions',week}).then(r=>{if(live)setExceptions(r)}).catch(()=>{if(live)setExceptionsError('לא ניתן לטעון את הסיבות השבועיות כרגע.')});return()=>{live=false}},[week,exceptionVersion])
+  const exceptionByStudent=new Map(exceptions.map(e=>[e.student_id,e]))
 
   const { customers, loading: loadingCustomers, error: customersError } = useCustomers()
   const { students, loading: loadingStudents } = useStudents()
@@ -97,13 +107,13 @@ export function CoverageReportPage() {
 
   /** אדמין: כל הלקוחות הפעילים במסלול גולד/פלטינום, כולל מי שעדיין לא קושר לתלמיד בכלל */
   const adminRows = useMemo((): Row[] => {
-    const nextMeetingByStudentId = buildNextMeetingByStudentId(meetings)
+    const nextMeetingByStudentId = buildNextMeetingByStudentId(meetings,week)
     return customers
       .filter((c) => isLiveTrackPlan(c.plan) && getEffectiveStatus(c) === 'active')
       .map((c): Row => {
         const student = students.find((s) => s.customer_id === c.id) ?? null
         const meeting = student ? nextMeetingByStudentId.get(student.id) ?? null : null
-        const severity: Severity = !student ? 'missing_student' : !meeting ? 'missing_meeting' : 'ok'
+        const severity: Severity = !student ? 'missing_student' : meeting ? 'ok' : exceptions.some(e=>e.student_id===student.id) ? 'skipped' : 'missing_meeting'
         return {
           id: c.id,
           name: c.full_name,
@@ -115,12 +125,12 @@ export function CoverageReportPage() {
           customer: severity === 'missing_student' ? c : null,
         }
       })
-  }, [customers, students, meetings, mentorEmailByStudentId])
+  }, [customers, students, meetings, mentorEmailByStudentId,week,exceptions])
 
   /** מנטור רגיל: רק התלמידים המשויכים אליו (RLS כבר מגביל students/meetings לשלו בלבד) */
   const mentorRows = useMemo((): Row[] => {
     if (!profile) return []
-    const nextMeetingByStudentId = buildNextMeetingByStudentId(meetings)
+    const nextMeetingByStudentId = buildNextMeetingByStudentId(meetings,week)
     const studentById = new Map(students.map((s) => [s.id, s]))
     return assignments
       .filter((a) => a.active && a.mentor_user_id === profile.id)
@@ -134,12 +144,12 @@ export function CoverageReportPage() {
           planBadge: null,
           mentorEmail: null,
           meeting,
-          severity: meeting ? 'ok' : 'missing_meeting',
+          severity: meeting ? 'ok' : exceptions.some(e=>e.student_id===s.id) ? 'skipped' : 'missing_meeting',
           studentId: s.id,
           customer: null,
         }
       })
-  }, [assignments, students, meetings, profile])
+  }, [assignments, students, meetings, profile,week,exceptions])
 
   const { rows, missingCount } = useMemo(() => {
     const built = (isAdmin ? adminRows : mentorRows).sort((a, b) => {
@@ -148,7 +158,7 @@ export function CoverageReportPage() {
       }
       return a.name.localeCompare(b.name, 'he')
     })
-    return { rows: built, missingCount: built.filter((r) => r.severity !== 'ok').length }
+    return { rows: built, missingCount: built.filter((r) => r.severity === 'missing_student' || r.severity === 'missing_meeting').length }
   }, [isAdmin, adminRows, mentorRows])
 
   function formatMeetingTime(iso: string) {
@@ -171,11 +181,13 @@ export function CoverageReportPage() {
         <h2 className="font-heading text-xl font-semibold">בקרת ליווי</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           {isAdmin
-            ? 'כל הלקוחות הפעילים במסלול גולד/פלטינום, עם סימון למי שאין לו פגישת ליווי משובצת לשבוע הקרוב.'
-            : 'התלמידים המשויכים אליך, עם סימון למי שאין לו פגישה משובצת לשבוע הקרוב.'}
+            ? 'כל הלקוחות הפעילים במסלול גולד/פלטינום, עם סימון למי שאין לו פגישת ליווי משובצת לשבוע שנבחר.'
+            : 'התלמידים המשויכים אליך, עם סימון למי שאין לו פגישה משובצת לשבוע שנבחר.'}
         </p>
       </div>
 
+      <div className="flex flex-wrap items-center gap-2"><Button variant="outline" size="sm" onClick={()=>setWeek(shiftDateKey(week,-7))}>שבוע קודם</Button><span>השבוע: {week} עד {shiftDateKey(week,6)}</span><Button variant="outline" size="sm" onClick={()=>setWeek(shiftDateKey(week,7))}>שבוע הבא</Button><Button variant="outline" size="sm" onClick={()=>setWeek(weekStartKey())}>השבוע הנוכחי</Button></div>
+      {exceptionsError&&<p role="alert" className="text-destructive">{exceptionsError}</p>}
       {isAdmin && customersError && (
         <Alert variant="destructive">
           <AlertDescription className="text-destructive">{customersError}</AlertDescription>
@@ -216,7 +228,7 @@ export function CoverageReportPage() {
             <Card
               key={id}
               className={`flex-row flex-wrap items-center justify-between gap-3 p-3 shadow-sm ${
-                severity !== 'ok' ? 'border-e-2 border-e-destructive/60' : ''
+                severity === 'missing_student' || severity === 'missing_meeting' ? 'border-e-2 border-e-destructive/60' : ''
               }`}
             >
               <div className="min-w-0">
@@ -248,14 +260,16 @@ export function CoverageReportPage() {
                   </Button>
                 </div>
               )}
-              {severity === 'missing_meeting' && (
+              {(severity === 'missing_meeting' || severity === 'skipped') && (
                 <div className="flex shrink-0 items-center gap-2">
                   <Badge variant="outline" className="border-transparent bg-amber-100 text-amber-800">
-                    <CalendarX className="h-3 w-3" /> אין פגישה לשבוע הקרוב
+                    <CalendarX className="h-3 w-3" /> {severity==='skipped'?'לא תתקיים פגישה השבוע':'אין פגישה לשבוע שנבחר'}
                   </Badge>
                   <Button size="sm" variant="outline" render={<Link to={`/mentoring/meetings/new?student=${studentId}`} />}>
                     שיבוץ פגישה
                   </Button>
+                  {studentId&&<WeekExceptionControl studentId={studentId} week={week} existing={exceptionByStudent.get(studentId)} onSaved={()=>setExceptionVersion(v=>v+1)} />}
+                  {studentId&&exceptionByStudent.has(studentId)&&<p className="max-w-md text-sm">סיבה: {exceptionByStudent.get(studentId)?.reason}</p>}
                 </div>
               )}
               {severity === 'ok' && (

@@ -272,7 +272,7 @@ export function followUpCountdown(datetime: string): FollowUpCountdown {
 
 export type LeadAttentionReason = 'follow_up_soon' | 'overdue_follow_up' | 'trial_ending'
 
-const TRIAL_ALERT_WINDOW_DAYS = 1
+const TRIAL_ALERT_WINDOW_DAYS = 7
 const FOLLOW_UP_NOTIFY_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
 
 /**

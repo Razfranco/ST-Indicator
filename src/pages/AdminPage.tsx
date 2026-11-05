@@ -1,3 +1,4 @@
+import { NotificationSettingsPage } from './mentoring/NotificationSettingsPage'
 import { useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useProfiles } from '../lib/useProfiles'
@@ -62,6 +63,7 @@ export function AdminPage() {
   return (
     <div className="flex flex-col gap-4 pb-6">
       <h2 className="font-heading text-xl font-semibold">ניהול משתמשים</h2>
+      <details className="rounded-lg border p-3"><summary className="cursor-pointer font-semibold">הגדרות התראות — מייל ו־Push</summary><div className="mt-3"><NotificationSettingsPage /></div></details>
 
       {(error || actionError) && (
         <Alert variant="destructive">

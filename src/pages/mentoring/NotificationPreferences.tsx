@@ -1,0 +1,17 @@
+import { useEffect,useState } from 'react'
+import { useAuth } from '../../context/AuthContext'
+import { notificationRequest } from '../../lib/mentoringNotifications'
+import { Section,Field,inputClass } from '../../components/BusinessFormControls'
+import { Button } from '../../components/ui/button'
+import { Checkbox } from '../../components/ui/checkbox'
+type Preference={userId:string;email:string;role:string;businessAccess:boolean;mentorAccess:boolean;emailEnabled:boolean;pushEnabled:boolean;emails:string[]}
+export function NotificationPreferences(){
+ const {user,profile}=useAuth();const admin=profile?.role==='admin'
+ const [rows,setRows]=useState<Preference[]>([]),[selected,setSelected]=useState(''),[emailEnabled,setEmailEnabled]=useState(true),[pushEnabled,setPushEnabled]=useState(true),[emails,setEmails]=useState(''),[busy,setBusy]=useState(false),[message,setMessage]=useState('')
+ async function load(){const r=await notificationRequest<{preferences:Preference[]}>();setRows(r.preferences);return r.preferences}
+ useEffect(()=>{let live=true;void notificationRequest<{preferences:Preference[]}>().then(r=>{if(live){setRows(r.preferences);setSelected(user?.id??r.preferences[0]?.userId??'')}}).catch(()=>{if(live)setMessage('לא ניתן לטעון העדפות')});return()=>{live=false}},[user?.id])
+ useEffect(()=>{const p=rows.find(r=>r.userId===selected);if(p){setEmailEnabled(p.emailEnabled);setPushEnabled(p.pushEnabled);setEmails(p.emails.join('\n'))}},[selected,rows])
+ const chosen=rows.find(r=>r.userId===selected)
+ async function save(){if(!chosen)return;setBusy(true);setMessage('');try{const list=[...new Set(emails.split(/[\s,;]+/).map(e=>e.trim().toLowerCase()).filter(Boolean))];await notificationRequest({action:'preferences',userId:selected,emailEnabled,pushEnabled,emails:list});await load();setMessage('העדפות ההתראות נשמרו.')}catch(e){setMessage((e as Error).message)}finally{setBusy(false)}}
+ return <Section title="נמענים וערוצי התראות"><p className="text-sm text-muted-foreground">העדפות אלה חלות על התראות הניהול. התראות מנטורינג נשלחות לפי גישה ושיוך לתלמיד; התראות מנויים וניסיון נשלחות רק לבעלי גישה עסקית. הודעות רכישה וחשבוניות ללקוחות מנוהלות בנפרד.</p>{admin&&<Field label="הגדרות עבור משתמש"><select className={inputClass} value={selected} onChange={e=>setSelected(e.target.value)}>{rows.map(p=><option key={p.userId} value={p.userId}>{p.email}</option>)}</select></Field>}{chosen&&<><p className="text-sm">תחומי התראות: {chosen.role==='admin'?'מנטורינג':chosen.mentorAccess?'מנטורינג — תלמידים משויכים':''}{chosen.businessAccess?' · ניהול עסקי, מנויים ותקופות ניסיון':''}</p><label className="flex items-center gap-2"><Checkbox checked={emailEnabled} onCheckedChange={v=>setEmailEnabled(v===true)} />שליחת התראות במייל</label><Field label="כתובות מייל — כתובת בכל שורה"><textarea className={inputClass} rows={3} value={emails} readOnly={!admin} onChange={e=>setEmails(e.target.value)} /></Field><label className="flex items-center gap-2"><Checkbox checked={pushEnabled} onCheckedChange={v=>setPushEnabled(v===true)} />אפשרות לשליחת Push למכשירים שהופעלו</label><Button disabled={busy} onClick={()=>void save()}>{busy?'שומר…':'שמירת הגדרות התראות'}</Button></>}<p role="status" className="text-sm">{message}</p></Section>
+}

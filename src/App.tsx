@@ -170,6 +170,7 @@ function App() {
             }
           />
           <Route path="/business" element={<Navigate to="/business/customers" replace />} />
+          <Route path="/business/notifications" element={businessPage(<NotificationSettingsPage />)} />
           <Route path="/business/customers" element={businessPage(<CustomersPage />)} />
           <Route path="/business/customers/new" element={businessPage(<CustomerFormPage />)} />
           <Route path="/business/customers/:id/edit" element={businessPage(<CustomerFormPage />)} />
